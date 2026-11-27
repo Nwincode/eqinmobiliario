@@ -58,7 +58,7 @@ export function armarAvisos({ solicitudes = [], mensajes = [], fotos = [], compr
 		}
 		if (s.alerta === 'mora') out.push({
 			clave: `mora_${s.codigo}`, tipo: 'mora', icono: 'icon-money', href: enlaceSolicitud(s.codigo), fecha: s.creado, urgente: true,
-			titulo: 'Ganancia de EQ con más de 72 h de atraso', detalle: [s.codigo, s.casa].filter(Boolean).join(' · ')
+			titulo: 'Comisión con más de 72 h de atraso', detalle: [s.codigo, s.casa].filter(Boolean).join(' · ')
 		});
 		if (s.alerta === 'bloqueada' && s.leadId) {
 			const listo = { tipo: 'robo', objeto: s.leadId, agentId: '' };
@@ -88,11 +88,11 @@ export function armarAvisos({ solicitudes = [], mensajes = [], fotos = [], compr
 	}
 	for (const c of comprobantes) out.push({
 		clave: `comprobante_${c.codigo}`, tipo: 'comprobante', icono: 'icon-money', href: enlaceSolicitud(c.codigo), fecha: c.fecha, urgente: false,
-		titulo: `${c.socio || 'El socio'} subió el pago de la ganancia de EQ`, detalle: [c.codigo, c.casa, 'revísalo y márcalo pagado'].filter(Boolean).join(' · ')
+		titulo: `${c.socio || 'El socio'} subió el pago de la comisión`, detalle: [c.codigo, c.casa, 'revísalo y márcalo pagado'].filter(Boolean).join(' · ')
 	});
 	for (const c of comisiones) out.push({
 		clave: `comision_${c.codigo}`, tipo: 'comision', icono: 'icon-money', href: enlaceSolicitud(c.codigo), fecha: c.vence ? Date.parse(`${c.vence}T00:00:00-06:00`) : ahora, urgente: c.nivel >= 2,
-		titulo: c.nivel >= 3 ? 'Tu pago a EQ tiene más de 72 h de atraso' : c.nivel === 2 ? 'Tu pago a EQ tiene más de 24 h de atraso' : 'Tu pago a EQ ya venció',
+		titulo: c.nivel >= 3 ? 'Tu comisión tiene más de 72 h de atraso' : c.nivel === 2 ? 'Tu comisión tiene más de 24 h de atraso' : 'Tu comisión ya venció',
 		detalle: [c.codigo, c.casa, 'sube el comprobante'].filter(Boolean).join(' · ')
 	});
 	for (const c of comentarios) {

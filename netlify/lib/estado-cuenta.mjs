@@ -30,18 +30,18 @@ const fila = (x, anio) => ({ nombre: x.reserva.propertyTitulo || x.reserva.codig
 // El correo de un socio (cuenta: estadoDeCuenta). Devuelve { asunto, html, texto }.
 export async function correoDeCuenta(socio, cuenta) {
 	const porPagar = dineroPorMoneda(cuenta.porPagar);
-	const resumen = [['Por pagar a EQ', porPagar || 'Nada'], ['Ya vencido', dineroPorMoneda(cuenta.vencido) || 'Nada: estás al día']];
+	const resumen = [['Por pagar a Equipo Inmobiliario', porPagar || 'Nada'], ['Ya vencido', dineroPorMoneda(cuenta.vencido) || 'Nada: estás al día']];
 	const [texto, url] = porPagar ? ['Subir comprobante', `${SITE_URL}/admin/#/solicitudes/cobrar`] : ['Abrir mi panel', `${SITE_URL}/admin/`];
 	const mes = mayuscula(MESES_LARGOS[Number(String(cuenta.mes).slice(5, 7)) - 1]);
 	const delMes = cuenta.total ? [['Reservas', `${cuenta.total} · ${nNoches(cuenta.noches)}`], ['Tu parte', dineroPorMoneda(cuenta.tuParte)],
-		['Ganancia de EQ', dineroPorMoneda(cuenta.comision)], ['Ya pagaste', dineroPorMoneda(cuenta.pagada)]] : [];
+		['Comisión', dineroPorMoneda(cuenta.comision)], ['Ya pagaste', dineroPorMoneda(cuenta.pagada)]] : [];
 	const anio = cuenta.mes.slice(0, 4);
 	// Las filas: las del mes (si las hay), las de antes y las próximas (las que ya suman en «Por pagar a EQ»).
 	const bloques = [[mes, cuenta.reservas], ['De meses anteriores', cuenta.anteriores], ['Próximas', cuenta.proximas]]
 		.map(([t, l]) => [t, l.map((x) => fila(x, anio))]).filter(([, l]) => l.length);
 	const titulo = `Tu estado de cuenta de ${nombreMes(cuenta.mes)}`;
 	const nombre = String(socio.nombre || '').trim().split(' ')[0];
-	const intro = `Hola${nombre ? ` ${nombre}` : ''}, esto es lo que llevas con EQ.`;
+	const intro = `Hola${nombre ? ` ${nombre}` : ''}, esto es lo que llevas con Equipo Inmobiliario.`;
 	const html = await plantilla({
 		titulo,
 		intro: esc(intro),

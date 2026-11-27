@@ -50,7 +50,7 @@ export const firma = (e, usuarios = {}) => {
 // Qué cambió, en palabras, para la lista de la ficha: [{ clave, campo, antes, despues }] con los valores ya escritos.
 const NOMBRES = {
 	moneda: 'Moneda', propietarioId: 'Dueño', limpieza: 'Limpieza', precioBase: 'Precio del dueño por noche', precioFinde: 'Precio del dueño en fin de semana',
-	tarifas: 'Temporadas', margen: 'Margen de EQ', datosPago: 'Datos de pago', permisos: 'Permisos', precios: 'Precios y temporadas (todos)',
+	tarifas: 'Temporadas', margen: 'Margen', datosPago: 'Datos de pago', permisos: 'Permisos', precios: 'Precios y temporadas (todos)',
 	fechas: 'Bloquear fechas (todos)', casa: '«La casa» (todos)', inmuebles: 'Ingresar inmuebles (todos)', revisadoAMano: 'Revisó a mano'
 };
 const DE_UN_SOCIO = Object.fromEntries(PERMISOS.map(([c, nombre]) => [c, nombre]));
