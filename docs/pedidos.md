@@ -63,3 +63,4 @@
 - [~] 2026-11-27 «2. como puedo revisarlo si no tengo cuenta, o me creaste una para revisar?» → no hay cuenta suya de socio: las de prueba viven solo en el emulador. Opciones: capturas (recomendado) o ficha de prueba en su panel con otro correo suyo; espera su elección.
 - [x] 2026-11-27 «demos un respiro a tus solicitudes, quiero ver el ingreso de una propiedad.» → enviadas capturas de «Nueva propiedad» (1280 en 3 partes y 390) con el recorrido de sus secciones.
 - [x] 2026-11-27 «al abrir el vip se necesita llenar datos y no sé que colocar, apoyame» → guía campo por campo de la landing VIP con ejemplos; ofrecido escribírselos con los datos de su casa.
+- [~] 2026-11-27 «oye, eso no se puede llenar solo en base a los datos que se ingresa?» → hoy solo titular, portada y botón toman algo de la casa; propuesto que titular, subtítulo y puntos clave se armen solos con sus datos (como el SEO), editables; espera su sí.
