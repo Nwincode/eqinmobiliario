@@ -298,6 +298,12 @@ export async function render(container, [codigo] = []) {
 	}
 
 	const lista = h('div', {});
+	// Terminada y sin nada por hacer: cancelada, «No se dio» o confirmada cuya salida ya pasó, sin mensaje que responder,
+	// sin ganancia de EQ por cobrar ni «Pago recibido» por tocar. La que se abrió por enlace nunca se pliega.
+	const porCobrar = new Set(debidas);
+	const anterior = (l) => l.reserva.codigo !== codigo && !teToca(l) && !porResponder.has(l.reserva.codigo) && !porCobrar.has(reservaDe(l))
+		&& !puedePagoRecibido(l) && (['no', 'cancelada'].includes(estado(l)) || (estado(l) === 'confirmada' && l.reserva.salida < hoy()));
+	let anterioresAbierta = false;
 	const filtro = { socio: '', estado: codigo === 'cobrar' ? 'cobrar' : '' };
 	const pintar = vista.pintar = () => {
 		const delSocio = (x) => !filtro.socio || x.propietarioId === filtro.socio;
@@ -308,7 +314,15 @@ export async function render(container, [codigo] = []) {
 			return lista.replaceChildren(deber.length ? deber.map((res) => ((l) => (l && estado(l) === 'confirmada' ? tarjeta(l) : tarjetaReserva(res)))(solicitudDe(res))) : emptyState('No hay ganancia de EQ por cobrar.'));
 		}
 		const ver = leads.filter((l) => delSocio(l) && (!filtro.estado || (filtro.estado === 'alerta' ? alerta(l) : estado(l) === filtro.estado)));
-		lista.replaceChildren(ver.length ? ver.map(tarjeta) : emptyState('No hay solicitudes.'));
+		if (!ver.length) return lista.replaceChildren(emptyState('No hay solicitudes.'));
+		// Sin filtro, lo terminado va plegado al final en «Anteriores (N)»: así arriba queda solo lo que sigue activo.
+		const viejas = filtro.estado ? [] : ver.filter(anterior);
+		const activas = ver.filter((l) => !viejas.includes(l));
+		lista.replaceChildren(...activas.map(tarjeta), viejas.length ? h('details', {
+			class: 'calc-detalle', open: anterioresAbierta || undefined, ontoggle: (e) => { anterioresAbierta = e.target.open; }
+		}, h('summary', {}, h('span', { class: 'icon-chevron-down me-2 calc-chev', 'aria-hidden': 'true' }), `Anteriores (${viejas.length})`,
+			h('span', { class: 'ms-auto small text-muted fw-normal d-none d-md-inline' }, 'Canceladas, «No se dio» y las que ya pasaron')),
+		viejas.map(tarjeta)) : null);
 	};
 	pintar();
 

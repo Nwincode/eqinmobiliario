@@ -51,3 +51,4 @@
 - [x] 2026-11-26 «cómo asi plegar lo apsaro ? explica.» → explicado: arriba lo por hacer y próximas; abajo «Anteriores (N)» plegada.
 - [~] 2026-11-26 «boceta» → boceto enviado (capturas 390, 1280 y abierta); espera su sí para programarlo.
 - [x] 2026-11-26 «vos no hay una skill para instalar o instalada que evite esos problemas?» → ya están diseno-minimo, ux-ui-audit y design-critique; se agregó a diseno-minimo la regla de listas que crecen (plegar lo terminado, sin caja con scroll).
+- [ ] 2026-11-26 «si hazlo»
