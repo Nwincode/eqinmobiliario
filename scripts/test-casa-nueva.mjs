@@ -64,6 +64,10 @@ t('datos reales de venta y renta no se toman por contacto (direcciones, montos, 
 		amenidades: ['Área social', 'Gimnasio 24/7'], m2Construccion: 480, mantenimiento: 1500 }));
 	assert.deepEqual(r.errores, []);
 	assert.deepEqual(revisar(venta({ operacion: 'renta', precio: 1500, titulo: 'Apartamento en renta, edificio Torre 5, nivel 12' })).errores, []);
+	// Un precio de Q20M a Q79.9M (8 cifras que empiezan de 2 a 7) con su moneda y en miles exactos es un precio, en el
+	// título, la descripción y una amenidad; el teléfono pelado sigue bloqueado.
+	assert.deepEqual(revisar(venta({ titulo: 'Casa en Q25,000,000', descripcion: 'Casa amplia con jardín. Precio US$ 22,500,000.00 negociable o 40,000,000 quetzales.', amenidades: ['Jardín', 'Cuota Q.30,000,000'] })).errores, []);
+	for (const tel of ['55551234', '5555-1234', '5555 1234', 'Q55,551,234']) assert.deepEqual(campos(revisar(venta({ descripcion: `Casa amplia con jardín. Precio Q25,000,000. ${tel}` }))), ['descripcion'], tel);
 });
 t('lo obligatorio de cada operación: precio en venta; precio por noche y dirección por noche', () => {
 	assert.deepEqual(campos(revisar(venta({ precio: '' }))), ['precio']);
