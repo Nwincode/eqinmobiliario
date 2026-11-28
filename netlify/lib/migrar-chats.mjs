@@ -11,6 +11,8 @@
 //     socio podía leer en el mensaje) dejan de abrirlos. Solo la cuenta de servicio los abre (/api/foto).
 //  3. El comprobante del pago a EQ de cada reserva (`comision.comprobante`) pasa de la dirección a su ruta.
 //  4. De las revisiones del comprobante con la foto oculta se borran banco y referencia (el socio lee esa revisión).
+//  5. Del historial de estados de cada casa (`historialEstado`) se borra el nombre de quien la cambió (`por`): la casa
+//     publicada la lee cualquiera (firestore.rules) y el uid (`porUid`) basta. Solo ese campo; lo demás, igual.
 // Por tandas (una función de Netlify se corta a los 10 s): `tanda` hace lo que quepa hasta `hasta` (o `porTanda` piezas)
 // y devuelve el `cursor` para seguir (null: terminó). La pieza es un registro (un chat, un archivo, una reserva…): un
 // chat se hace entero (copiar, cambiar los mensajes y después borrar), así una tanda cortada a la mitad se repite sin
@@ -19,10 +21,11 @@
 import { listar, leerPrivado, rutasDeGrupo } from './firestore.mjs';
 import { transaccion, listarCrudo, escribirLote } from './firestore-escritura.mjs';
 import { listar as archivosDe, quitarLlave, copiar, borrar } from './storage.mjs';
-import { rutaDeFoto, carpetaFotos, rutaDeComprobante } from '../../admin/js/hilo.js';
+import { rutaDeFoto, carpetaFotos, rutaDeComprobante, FASES_MIGRACION } from '../../admin/js/hilo.js';
+import { historialSinNombres } from '../../admin/js/cambios-casa.js';
 
 const TODOS = { tope: 1_000_000 };
-export const cuentaVacia = () => ({ fotos: 0, archivos: 0, llaves: 0, notas: 0, revisiones: 0, comprobantes: 0, indices: 0 });
+export const cuentaVacia = () => ({ fotos: 0, archivos: 0, llaves: 0, notas: 0, revisiones: 0, comprobantes: 0, indices: 0, nombres: 0 });
 
 // Cada fase: `piezas()` → [{ clave, ... }] (lo que revisa, en orden por clave) y `hacer(pieza, aplicar, cuenta)`.
 const FASES = [
@@ -109,11 +112,24 @@ const FASES = [
 			cuenta.revisiones++;
 			if (aplicar) await transaccion(({ cambiar }) => cambiar(`revisionesComprobante/${clave}`, { 'leido.banco': '', 'leido.referencia': '' }));
 		}
+	},
+	{
+		// El nombre en el historial de estados de una casa: se vuelve a leer en la transacción (otro pudo cambiarla) y se
+		// escribe solo `historialEstado`, sin tocar `updatedAt` (no es un cambio de la casa).
+		piezas: async () => (await listar('properties', TODOS)).filter((p) => historialSinNombres(p.historialEstado)).map((p) => ({ clave: p.id })),
+		async hacer({ clave }, aplicar, cuenta) {
+			cuenta.nombres++;
+			if (aplicar) await transaccion(async ({ leer, cambiar }) => {
+				const limpio = historialSinNombres((await leer(`properties/${clave}`))?.historialEstado);
+				if (limpio) cambiar(`properties/${clave}`, { historialEstado: limpio });
+			});
+		}
 	}
 ];
 export const FASES_TOTAL = FASES.length;
+if (FASES_TOTAL !== FASES_MIGRACION) throw new Error(`migrar-chats: ${FASES_TOTAL} fases y FASES_MIGRACION (admin/js/hilo.js) dice ${FASES_MIGRACION}`);
 
-// ¿Es un cursor que vino de `tanda`? { fase: 0…4, desde: la clave de la última pieza hecha }.
+// ¿Es un cursor que vino de `tanda`? { fase: 0…5, desde: la clave de la última pieza hecha }.
 export const cursorValido = (c) => c === null || (Boolean(c) && typeof c === 'object' && Number.isInteger(c.fase) && c.fase >= 0 && c.fase < FASES.length
 	&& typeof c.desde === 'string' && c.desde.length <= 1024);
 
@@ -140,7 +156,7 @@ export const sumarCuenta = (a, b) => Object.fromEntries(Object.keys(cuentaVacia(
 
 // Aplicar, con el avance guardado en el servidor (estado/migracion-chats { avance, hecha, por }): una pasada empieza con
 // cursor null y cada tanda siguiente tiene que traer el avance guardado; solo una pasada completa desde el principio deja
-// `hecha` (el panel ya no ofrece el botón). Un cursor que no es el guardado lanza (codigo 'AVANCE'): se empieza otra vez,
+// `hecha` con las `fases` que cubrió (el panel ya no ofrece el botón, hasta que haya una fase nueva). Un cursor que no es el guardado lanza (codigo 'AVANCE'): se empieza otra vez,
 // sin riesgo (lo ya pasado no se vuelve a tocar). La usan /api/migrar-chats y el script.
 const ESTADO = 'estado/migracion-chats';
 export async function tandaAplicando({ cursor = null, hasta = Infinity, porTanda = Infinity, por = '' } = {}) {
@@ -149,7 +165,7 @@ export async function tandaAplicando({ cursor = null, hasta = Infinity, porTanda
 		if (!avance || avance.fase !== cursor.fase || avance.desde !== cursor.desde) throw Object.assign(new Error('El avance guardado no coincide: empieza otra vez.'), { codigo: 'AVANCE' });
 	}
 	const r = await tanda({ aplicar: true, cursor, hasta, porTanda });
-	const datos = r.cursor ? { avance: r.cursor } : { avance: null, hecha: new Date(), por };
+	const datos = r.cursor ? { avance: r.cursor } : { avance: null, hecha: new Date(), por, fases: FASES_TOTAL };
 	await transaccion(async ({ leer, crear, cambiar }) => { if (await leer(ESTADO)) cambiar(ESTADO, datos); else crear(ESTADO, datos); });
 	return r;
 }
@@ -162,6 +178,6 @@ export async function migrarChats({ aplicar = false, log = console.log, por = 's
 		total = sumarCuenta(total, r.cuenta);
 		cursor = r.cursor;
 	} while (cursor);
-	log(`${aplicar ? 'Migrado' : 'Por migrar (sin --aplicar no se escribe nada)'}: ${total.archivos} fotos de antes a la carpeta de su solicitud, ${total.fotos} fotos a su ruta, ${total.llaves} tokens de descarga quitados, ${total.notas} notas a notasEquipo, ${total.indices} índices de chats de antes, ${total.comprobantes} comprobantes de la comisión a su ruta, ${total.revisiones} revisiones ocultas sin banco ni referencia.`);
+	log(`${aplicar ? 'Migrado' : 'Por migrar (sin --aplicar no se escribe nada)'}: ${total.archivos} fotos de antes a la carpeta de su solicitud, ${total.fotos} fotos a su ruta, ${total.llaves} tokens de descarga quitados, ${total.notas} notas a notasEquipo, ${total.indices} índices de chats de antes, ${total.comprobantes} comprobantes de la comisión a su ruta, ${total.revisiones} revisiones ocultas sin banco ni referencia, ${total.nombres} casas sin nombres en su historial.`);
 	return total;
 }

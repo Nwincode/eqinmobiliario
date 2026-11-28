@@ -183,7 +183,11 @@ export const NORMALES = (() => [
 	'Son dos mil quinientos quetzales por noche, y mil quinientos de depósito', 'Pagamos cuatro mil ochocientos cuarenta y dos quetzales', 'cuatro mil ochocientos cuarenta y dos',
 	'La casa tiene ciento veinte metros y está a quinientos metros del lago', 'Somos cien por ciento puntuales', 'A thousand thanks!', 'It is two hundred dollars more?',
 	'Somos cuatro adultos y dos niños, llegamos el doce y salimos el quince', 'facebook es donde la vi', 'Instagram genial', 'mi facebook está caído', 'mi ig no carga las fotos',
-	'Lo vi en instagram es muy bonita, ¿tiene piscina?', 'Por instagram vi que tiene muelle', 'fb: gracias'
+	'Lo vi en instagram es muy bonita, ¿tiene piscina?', 'Por instagram vi que tiene muelle', 'fb: gracias',
+	// El precio de una casa en el título, la descripción o una amenidad: con su moneda y en miles exactos, aunque tenga 8
+	// cifras que empiezan de 2 a 7 (Q20M a Q79.9M).
+	'Precio Q25,000,000', 'Precio Q 25,000,000.00 negociable', 'Precio: Q.25,000,000', 'Precio $25,000,000', 'US$ 22,500,000', 'USD 30,000,000',
+	'Valor 40,000,000 quetzales', '25,000,000 dólares', 'Q 2,500,000.00', 'Casa de 4 habitaciones en Q50,000,000, 600 v2 de terreno'
 ].map(alAnio))();
 
 export const EVASIONES = (() => [
@@ -286,7 +290,10 @@ export const EVASIONES = (() => [
 	'tiktok villalago', 'telegram juanlago', 'mi ig juanlago.', 'mi cuenta de facebook es juanlago', 'mi ig es villalago', 'mi ig es villa lago gt', 'telegrаm villalago',
 	'cincuenta y cinco cincuenta y cinco cuatro mil ochocientos cuarenta y dos', 'cincuenta y cinco cincuenta y cinco mil ciento veintidós', '5555 cuatro mil ochocientos cuarenta y dos',
 	'mi número es cinco cinco cinco cinco, mil ciento veintidós', 'cinco mil quinientos cincuenta y cinco mil doscientos treinta y cuatro',
-	'cinco mil quinientos cincuenta y cinco, mil doscientos treinta y cuatro', 'five five five five zero five five five', 'fifty five fifty five four thousand eight hundred forty two'
+	'cinco mil quinientos cincuenta y cinco, mil doscientos treinta y cuatro', 'five five five five zero five five five', 'fifty five fifty five four thousand eight hundred forty two',
+	// Un teléfono vestido de precio (sin miles exactos, o con más cifras que un precio) o junto a un precio.
+	'Q55,551,234', '$55,551,234', 'Precio Q25,000,000 y mi cel 5555 1234', '5555 Q25,000,000 1234', 'Q25,000,000 55551234', 'Precio Q25,000,000, 5555-1234',
+	'Q5,055,551,000', 'US$ 1,305,555,000'
 ].map(alAnio))();
 
 // Se bloquea aunque podría ser normal.
@@ -296,12 +303,14 @@ export const BLOQUEADAS_A_PROPOSITO = (() => [
 	'Hice la transferencia, número de boleta 70012345',
 	// Juntando los grupos cercanos forman un teléfono posible (8 cifras que empiezan de 2 a 7, o 10 o más): se bloquean
 	// aunque sean un monto, una cuenta, un vuelo o una referencia corta. Es preferible a dejar pasar un teléfono.
-	'Pagué 2500 + 2500 = 5000', '6000 + 350 = 6350', 'Son 3 noches x 450 = 1350 + 200 de limpieza = 1550 total.', 'Q 2,500,000.00',
+	'Pagué 2500 + 2500 = 5000', '6000 + 350 = 6350', 'Son 3 noches x 450 = 1350 + 200 de limpieza = 1550 total.',
 	'Son Q2345 y Q5678 en total?', 'Our flight UA 2318 lands at 1450, we drive straight there', 'Vuelo AV 2318 aterriza a las 1450',
 	'La referencia de mi pago es 20241234, ya transferí', 'Transfer ref 778812345 done',
 	'factura a nombre de Ana, NIT 3456789-1', 'deposité en la cuenta 3012345678', 'cuenta monetaria 01-2345678-9', 'cuenta 123-456789-0',
 	'el depósito fue de Q3,250.00 en Banco Industrial, boleta 70012345', 'Transfer done, confirmation #4512-7788', 'Zelle confirmation 25563412',
-	'boleta 70012345'
+	'boleta 70012345',
+	// Un precio de 8 cifras de 2 a 7 sin su moneda o con puntos de miles: sin la forma de precio se lee como teléfono.
+	'Terreno de 25,000,000 m2', 'Q25.000.000'
 ].map(alAnio))();
 
 // Límites aceptados (pasan; no se prueban): sin cifras ni forma de usuario, no hay de dónde agarrarse sin bloquear frases
@@ -325,7 +334,9 @@ export const LIMITES_ACEPTADOS = [
 	'gmail: juanperez', 'búscame en insta: villalago', 'en instagram: villalago', 'por telegram: villalago', 'ig: villalago',
 	'mi correo es anaperez', '🔟', 'i​g: villalago', 'ig: villalago', 'ig:\tvillalago', 'mi correo es anaperez',
 	'mi número: cinco cinco cinco cinco', 'termina en 1234', '55-55',
-	'12-34', 'IV IV', 'whatsapp 5555'];
+	'12-34', 'IV IV', 'whatsapp 5555',
+	// Un teléfono que termina en 000 escrito como precio en miles exactos («Q55,551,000»): pasa como precio.
+	'Q55,551,000'];
 
 // Corpus GENERADO: cada teléfono y cada usuario conocidos envueltos en cada contexto de excepción que tiene el filtro
 // (sus palabras, con dos puntos, en mayúsculas, con y sin acentos, en dos líneas, delante y detrás, en español y en

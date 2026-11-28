@@ -109,7 +109,9 @@ function normalizeProperties(list) {
 				fechaOrden: toMillis(p.createdAt) || (1e13 - (p.orden || 0))
 			};
 		})
-		.sort((a, b) => (b.destacada === true) - (a.destacada === true) || byOrder(a, b) || b.fechaOrden - a.fechaOrden);
+		// «Más recientes» (el orden de los listados y de la portada): destacadas primero, después el orden a mano (si lo
+		// tiene) y al final la más nueva primero. Sin desempate por título: byOrder lo pondría alfabético.
+		.sort((a, b) => (b.destacada === true) - (a.destacada === true) || (a.orden ?? 999) - (b.orden ?? 999) || b.fechaOrden - a.fechaOrden);
 }
 
 // El SEO que el panel puso solo (igual a seo.auto) se vuelve a calcular aquí con la regla de hoy: así un cambio en
@@ -649,9 +651,12 @@ async function main() {
 	const enActivo = Boolean(site.en) && site.en.activo !== false;
 	// Solo lo traducido sale en inglés; sin casas vacacionales traducidas no hay listado vacacional en inglés.
 	const todasEn = enActivo ? todas.map(propiedadEn).filter(Boolean) : [];
-	// Dos casas con el mismo título en inglés no pueden compartir dirección (igual que en español).
+	// Dos casas con el mismo título en inglés no pueden compartir dirección (igual que en español): la conserva la más
+	// antigua (`antes`), no la primera del orden de los listados (la más nueva): así una casa nueva no le cambia la
+	// dirección a una que ya está en Google.
+	const antes = (a, b) => (toMillis(a.createdAt) || 0) - (toMillis(b.createdAt) || 0) || String(a.codigo || a.id || '').localeCompare(String(b.codigo || b.id || ''));
 	const slugsEn = new Set();
-	for (const p of todasEn) {
+	for (const p of [...todasEn].sort(antes)) {
 		if (slugsEn.has(p.slug)) p.slug = `${p.slug}-${slugify(p.id).slice(0, 8)}`;
 		slugsEn.add(p.slug);
 	}
@@ -660,7 +665,6 @@ async function main() {
 	// Dos fichas con el mismo título para Google compiten entre sí: a la segunda (y siguientes) se le suma su código o
 	// su zona (T.tituloUnico). En los dos idiomas. Siempre la misma ficha conserva su título: la más antigua (por fecha
 	// de creación y, si empatan, por código), sin importar el orden en que vengan de la base.
-	const antes = (a, b) => (toMillis(a.createdAt) || 0) - (toMillis(b.createdAt) || 0) || String(a.codigo || a.id || '').localeCompare(String(b.codigo || b.id || ''));
 	for (const lista of [todas, todasEn]) {
 		const vistos = new Set();
 		for (const p of [...lista].sort(antes)) {

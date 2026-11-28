@@ -181,6 +181,9 @@ export function tarjetaComprobante(m, t, rv = null, monto = '', { ver = true, sr
 // cambiar el enlace (netlify/lib/rotar-enlace.mjs) no mueve archivos. El cliente sube a lo más FOTOS_POR_CHAT, con nombre
 // 1, 2, … (storage.rules: uno de cada número, sin reemplazar).
 export const FOTOS_POR_CHAT = 10;
+// Cuántas fases tiene «Pasar datos al formato nuevo» (netlify/lib/migrar-chats.mjs FASES, que lo comprueba al cargar):
+// la marca de hecha guarda las que cubrió y, con una fase nueva, el panel vuelve a ofrecer el botón (views/publish.js).
+export const FASES_MIGRACION = 6;
 export const carpetaFotos = (leadId) => `fotosChat/${leadId}/`;
 // La ruta en Storage de la foto de un mensaje del chat `{ token, leadId }`, o '' si no es una foto de ese chat. La de
 // ahora: `fotosChat/{leadId}/{archivo}`. Las de antes: `chats/{token}/{archivo}` o la dirección con el token de descarga

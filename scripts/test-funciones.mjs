@@ -389,4 +389,25 @@ await t('mora con el comprobante del cliente: la pausa del servidor y el nivel d
 	respuestas = () => new Response('{}', { status: 200 });
 }
 
+await t('«Pasar datos al formato nuevo»: borra el nombre (`por`) del historial de estados de cada casa, sin tocar lo demás; repetirla no cambia nada', async () => {
+	const { tanda, tandaAplicando, FASES_TOTAL } = await import('../netlify/lib/migrar-chats.mjs');
+	const fecha = new Date('2026-03-01T10:00:00.123Z'), actualizada = new Date('2026-04-01T00:00:00Z');
+	poner('properties/c1', { titulo: 'Casa del lago', publicado: true, updatedAt: actualizada, historialEstado: [
+		{ estado: 'disponible', fecha, por: 'Ana López', porUid: 'u1' }, { estado: 'reservada', fecha: '2026-03-05T10:00:00.000Z', por: 'Dueño', porUid: 'u2' }, { estado: 'disponible', fecha: null, porUid: 'u3' }] });
+	poner('properties/c2', { titulo: 'Sin nombres', historialEstado: [{ estado: 'disponible', fecha, porUid: 'u1' }] });
+	poner('properties/c3', { titulo: 'Sin historial' });
+	const vuelta = async (aplicar) => { let cuenta = 0, cursor = null; do { const r = aplicar ? await tandaAplicando({ cursor }) : await tanda({ cursor }); cuenta += r.cuenta.nombres; cursor = r.cursor; } while (cursor); return cuenta; };
+	assert.equal(await vuelta(false), 1);
+	assert.equal(leer('properties/c1').historialEstado[0].por, 'Ana López', 'el simulacro no escribe');
+	assert.equal(await vuelta(true), 1);
+	const c1 = leer('properties/c1');
+	assert.deepEqual(c1.historialEstado, [{ estado: 'disponible', fecha, porUid: 'u1' }, { estado: 'reservada', fecha: '2026-03-05T10:00:00.000Z', porUid: 'u2' }, { estado: 'disponible', fecha: null, porUid: 'u3' }]);
+	assert.ok(c1.historialEstado[0].fecha instanceof Date, 'la fecha sigue siendo fecha');
+	assert.equal(c1.updatedAt.getTime(), actualizada.getTime(), 'no cuenta como un cambio de la casa');
+	assert.deepEqual(leer('properties/c2').historialEstado, [{ estado: 'disponible', fecha, porUid: 'u1' }]);
+	assert.equal(await vuelta(true), 0);
+	// La marca dice cuántas fases cubrió: con una fase nueva el panel vuelve a ofrecer el botón.
+	assert.equal(leer('estado/migracion-chats').fases, FASES_TOTAL);
+});
+
 console.log(`\n${ok} pruebas de las funciones pasan.`);

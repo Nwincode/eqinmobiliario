@@ -48,8 +48,15 @@ export function guardarSobre(actual = {}, alAbrir = {}, mio = {}) {
 	return aplicarCambios(actual, cambiosEntre(alAbrir, mio, grupos), grupos);
 }
 
-// Una entrada del historial de estados («quien»: { fecha, por, porUid }; serverTimestamp no va dentro de arreglos).
-export const entradaEstado = (estado, { fecha, por = '', porUid = '' } = {}) => ({ estado, fecha, por, porUid });
+// Una entrada del historial de estados («quien»: { fecha, porUid }; serverTimestamp no va dentro de arreglos). Sin el
+// nombre de quien la cambió: la casa publicada la lee cualquiera (firestore.rules) y el uid basta (pausaPropia).
+export const entradaEstado = (estado, { fecha, porUid = '' } = {}) => ({ estado, fecha, porUid });
+// El historial de estados sin los nombres que se guardaban antes (`por`), con todo lo demás igual; null si no tiene
+// ninguno (no hay nada que cambiar). Lo usa la migración (netlify/lib/migrar-chats.mjs, «Pasar datos al formato nuevo»).
+export function historialSinNombres(historial) {
+	if (!Array.isArray(historial) || !historial.some((e) => e && typeof e === 'object' && 'por' in e)) return null;
+	return historial.map((e) => { if (!e || typeof e !== 'object') return e; const { por, ...resto } = e; return resto; });
+}
 
 // Historial de estado y de precio al guardar: lo que ya tiene la casa en la base («antes»; null si nace) y lo nuevo.
 // Una sola para todo el panel: la ficha, el importador y toda propiedad nueva (propiedadNueva).
@@ -79,7 +86,7 @@ export const huespedesMaxDe = (n) => Math.min(HUESPEDES_MAX, Math.max(1, Math.fl
 
 // Lo que trae toda propiedad nueva (la ficha le pone el asesor de quien la crea). Nueva cada vez: sus listas no se comparten.
 export const casaBase = () => ({ operacion: 'venta', tipo: 'casa', estado: 'disponible', moneda: 'USD', ciudad: 'Guatemala', publicado: false, agentId: '', fotos: [], amenidades: [], vipLanding: {}, seo: {} });
-// Una propiedad al nacer: lo de siempre, lo que trae y su historial de estado y de precio empezado («quien»: { fecha, por,
+// Una propiedad al nacer: lo de siempre, lo que trae y su historial de estado y de precio empezado («quien»: { fecha,
 // porUid }). La usan la ficha (propiedadNueva en admin/js/views/properties.js, con quién y cuándo la creó) y el servidor
 // (la casa que sube el socio).
 export function casaQueNace(datos, quien) {

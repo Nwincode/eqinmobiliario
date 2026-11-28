@@ -6,6 +6,7 @@ import { SITIO as SITE } from './firebase.js';
 import { seOfrece, enOperacion, operacionHashtag, precioVisible, textoSinPrecio } from './estados.js';
 import { conEmojis } from './descripcion.js';
 import { precioTexto, piesCuadrados } from './formato.js';
+import { publicUrl } from './ficha-casa.js';
 
 
 // Plataformas por defecto. Se pueden cambiar en Contenido del sitio → Portales.
@@ -63,12 +64,10 @@ function area(m2, lang) {
 	return lang === 'en' ? `${piesCuadrados(m2)} (${m2} m²)` : `${m2} m²`;
 }
 
-// Enlace a la ficha con UTM: así cada lead queda atribuido a la plataforma de donde vino.
+// Enlace a la ficha con UTM: así cada lead queda atribuido a la plataforma de donde vino. Un portal en inglés lleva a la
+// página en inglés solo si existe (publicUrl); si no, a la de español, nunca a una que no existe.
 export function enlaceFicha(p, portal) {
-	const lang = portal.idioma;
-	const slug = lang === 'en' && p.en && p.en.titulo ? slugify(p.en.slug || p.en.titulo) : p.slug;
-	const base = lang === 'en' ? (p.vip ? '/en/luxury/' : '/en/property/') : (p.vip ? '/vip/' : '/propiedad/');
-	return `${SITE}${base}${slug}/?utm_source=${encodeURIComponent(portal.id)}&utm_medium=anuncio&utm_campaign=difusion`;
+	return `${SITE}${publicUrl(p, portal.idioma)}?utm_source=${encodeURIComponent(portal.id)}&utm_medium=anuncio&utm_campaign=difusion`;
 }
 
 function cortar(texto, max) {

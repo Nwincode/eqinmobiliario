@@ -6,7 +6,8 @@
 //    el `cursor` hasta que vuelve null y suma las cuentas. Repetir una tanda no cambia nada (la migración solo toca lo que
 //    sigue con la forma de antes). `porTanda` (opcional, para las pruebas) solo achica la tanda.
 //  - Aplicar guarda el avance en el servidor (estado/migracion-chats): cada tanda tiene que traer el cursor guardado, y
-//    solo una pasada completa desde el principio deja `hecha` (el panel ya no ofrece el botón).
+//    solo una pasada completa desde el principio deja `hecha` con sus `fases` (el panel ya no ofrece el botón hasta que
+//    haya una fase nueva: `FASES_MIGRACION`).
 // Respuestas: 200, 400 (cursor mal formado), 401/403, 409 (el cursor no es el guardado: empezar otra vez), 429,
 // 502 { error } (seguir con el mismo cursor), 503 sin las cuentas.
 import { staffUser, json } from '../lib/auth.mjs';

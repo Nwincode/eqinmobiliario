@@ -12,3 +12,5 @@ export const donde = async (col, campo, valor) => hijos(col).filter((d) => (type
 export const consultar = async (col, campo, valor, { tope = 3000 } = {}) => hijos(col)
 	.filter((d) => (typeof valor === 'number' ? typeof d[campo] === 'number' && d[campo] >= valor : typeof d[campo] === 'string' && d[campo] >= String(valor)))
 	.sort((a, b) => (a[campo] < b[campo] ? -1 : a[campo] > b[campo] ? 1 : 0)).slice(0, tope);
+// Las rutas de los documentos de las subcolecciones llamadas `col`, estén donde estén (como la consulta de grupo).
+export const rutasDeGrupo = async (col) => [...S.docs.keys()].filter((k) => k.split('/').at(-2) === col).sort();

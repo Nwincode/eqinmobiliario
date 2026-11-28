@@ -23,12 +23,14 @@ async function api(metodo, cuerpo) {
 	return datos;
 }
 
-// El inglés de la casa al día (si un texto cambió y el inglés no se corrigió a mano).
+// El inglés de la casa al día (si un texto cambió y el inglés no se corrigió a mano). Si lo escribió, el sitio queda por
+// publicar (como «Traducir al inglés» de la ficha): sin eso, la página en inglés no se rehacía.
 async function inglesAlDia(propertyId) {
 	const { faltaIngles, traducirEn, guardarCambios } = await import('./properties.js');
 	const s = await getDoc(doc(db, 'properties', propertyId));
 	if (!s.exists() || !faltaIngles(s.data())) return;
 	await guardarCambios(propertyId, { en: await traducirEn(s.data()) });
+	await markPending(`Traducción al inglés: ${s.data().titulo || propertyId}`);
 }
 
 // Fotos: las nuevas en miniatura y cuántas se quitaron.
