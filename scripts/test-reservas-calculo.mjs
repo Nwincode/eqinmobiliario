@@ -7,7 +7,7 @@ import { venceRespuesta, vencePago, recordarPagoDesde, conPlazo, PLAZOS_DESDE, p
 	motivoParaNoMeLlego, comprobanteVigente, noLlegoReabre, faltaDireccion, esDuplicada, bajoElPlan, motivoSocioNoConfirma, apartaFechas, apartadaPor, choqueExterno, seCruzan } from '../admin/js/reservas-calculo.js';
 import '../js/calc-vacacional.js';
 import { nuevaReserva, comisionDeReserva, cuentaDe, subtotalCotizado, montosDeConfirmacion, difierenMontos, reservaDeSolicitud, queConfirmo, yaRespondida, antesDeLlegar, llegadaPasada,
-	motivoParaNoCancelar, MOTIVOS_NO, MOTIVOS_CANCELAR } from '../admin/js/reservas-calculo.js';
+	motivoParaNoCancelar, MOTIVOS_NO, MOTIVOS_CANCELAR, minimoQueFalta, cotizacionDeLaCasa, cotizacionCambio } from '../admin/js/reservas-calculo.js';
 
 const V = globalThis.EQVacacional;
 let ok = 0;
@@ -301,6 +301,28 @@ test('confirmar encima de noches de Airbnb, Booking o VRBO: el motivo en una lí
 test('una reserva a mano es confirmada o cancelada: «pendiente» (de antes) se guarda confirmada solo si se elige', () => {
 	assert.equal(nuevaReserva(casa, { llegada: '2026-12-01', salida: '2026-12-03', estado: 'pendiente' }).estado, 'confirmada');
 	assert.equal(nuevaReserva(casa, { llegada: '2026-12-01', salida: '2026-12-03', estado: 'cancelada' }).estado, 'cancelada');
+});
+
+test('mínimo de noches (el general y el de las fechas especiales, guardados hoy): no se confirma con menos; la misma regla de la página', () => {
+	const ahora = Date.parse('2026-11-20T18:00:00Z');
+	const pub = { ...casa, publicado: true, vacacional: { limpieza: 0, nochesMin: 3, minimos: [{ desde: '2026-12-24', hasta: '2026-12-31', noches: 5 }] } };
+	assert.equal(minimoQueFalta({ llegada: '2026-12-01', salida: '2026-12-04' }, pub), 0);
+	assert.equal(minimoQueFalta({ llegada: '2026-12-01', salida: '2026-12-03' }, pub), 3);
+	assert.equal(minimoQueFalta({ llegada: '2026-12-26', salida: '2026-12-29' }, pub), 5);
+	assert.equal(minimoQueFalta({ llegada: '2026-12-01', salida: '2026-12-02' }, casa), 0, 'sin mínimo guardado: 1 noche');
+	assert.match(motivoParaNoConfirmar({ reserva: { llegada: '2026-12-26', salida: '2026-12-27', noches: 1, moneda: 'USD' } }, pub, null, ahora), /Son 1 noche y la casa pide al menos 5/);
+	assert.equal(motivoParaNoConfirmar(solicitud(360), pub, null, ahora), '');
+});
+
+test('lo que cuesta la estancia con lo guardado hoy en la casa (precio, limpieza, depósito): si es otro que lo que vio el cliente, cambió', () => {
+	const c = { vacacional: { base: 120, finde: 0, tarifas: [], limpieza: 50, deposito: 100 } };
+	const r = { llegada: '2027-01-10', salida: '2027-01-13' };
+	const q = cotizacionDeLaCasa(r, c);
+	assert.deepEqual([q.subtotal, q.deposito], [410, 100]);
+	assert.equal(cotizacionCambio({ ...r, subtotal: 410, deposito: 100 }, c), false);
+	assert.equal(cotizacionCambio({ ...r, subtotal: 410, deposito: 100 }, { vacacional: { ...c.vacacional, limpieza: 0 } }), true, 'la limpieza se quitó');
+	assert.equal(cotizacionCambio({ ...r, subtotal: 410, deposito: 0 }, c), true, 'el depósito');
+	assert.equal(cotizacionCambio({ ...r, subtotal: 410.01, deposito: 100 }, c), true, 'un centavo');
 });
 
 console.log(`Reservas (cuentas): ${ok} pruebas bien.`);

@@ -20,7 +20,7 @@ import { session, markPending } from './session.js';
 import { anotar, bitacoraActiva } from './bitacora-panel.js';
 import { dia, ahoraServidor, errorMessage, fallaDelServidor } from './ui.js';
 
-import { choqueExterno, deSolicitud, nuevaReserva, comisionDeReserva, reservaDeSolicitud, queConfirmo, yaRespondida, motivoParaNoConfirmar, faltaDireccion, textoNo, textoCliente, TEXTO_SIN_DIRECCION } from './reservas-calculo.js';
+import { choqueExterno, aRevisar, textoSinLeer, deSolicitud, nuevaReserva, comisionDeReserva, reservaDeSolicitud, queConfirmo, yaRespondida, motivoParaNoConfirmar, faltaDireccion, textoNo, textoCliente, TEXTO_SIN_DIRECCION } from './reservas-calculo.js';
 
 const V = window.EQVacacional;
 const quienEscribe = () => (session.esSocio ? 'socio' : 'equipo');
@@ -43,9 +43,10 @@ export async function alDiaEnLaWeb(...ids) {
 }
 // Lo que ocupa una casa ahora, como lo ve la página (sin la copia del CDN): { ocupadas, externas (Airbnb, Booking, VRBO),
 // apartadas (solicitudes que apartan sus fechas) }. null si no responde (la casa sin publicar da 404).
-export async function ocupacionDe(propertyId) {
+// `confirmar`: al confirmar, cada plataforma tiene 5 s (como /api/reservas) y lo que no respondió viene en `deHace`.
+export async function ocupacionDe(propertyId, { confirmar = false } = {}) {
 	try {
-		const r = await fetch(`/api/disponibilidad/al-dia?id=${encodeURIComponent(propertyId)}`, { headers: { Accept: 'application/json' } });
+		const r = await fetch(`/api/disponibilidad/al-dia?id=${encodeURIComponent(propertyId)}${confirmar ? '&para=confirmar' : ''}`, { headers: { Accept: 'application/json' } });
 		return r.ok ? await r.json() : null;
 	} catch { return null; }
 }
@@ -265,12 +266,14 @@ export const confirmarSolicitud = conCaminoDeAntes(async function confirmarSolic
 	// Sin la dirección exacta no se confirma (lo mismo que revisa el servidor por el socio).
 	if (faltaDireccion((await getDoc(doc(db, 'properties', l.propertyId, 'privado', 'llegada')).catch(() => null))?.data())) throw Object.assign(new Error(TEXTO_SIN_DIRECCION), { servidor: 409 });
 	// Noches ya tomadas en Airbnb, Booking o VRBO (lo mismo que revisa el servidor por el socio). Si la consulta no
-	// responde o un calendario no se pudo leer, se confirma solo diciendo que se revisó a mano (`revisado`).
-	const ocup = await ocupacionDe(l.propertyId);
+	// responde, un calendario no se pudo leer o no respondió y se tomó lo último guardado (aRevisar), se confirma solo
+	// diciendo que se revisó a mano (`revisado`): la misma regla y el mismo texto que el servidor por el socio.
+	const ocup = await ocupacionDe(l.propertyId, { confirmar: true });
 	const enOtra = choqueExterno(r, ocup?.externas?.map((x) => ({ ...x, fuente: 'Airbnb, Booking o VRBO' })));
 	if (enOtra) throw Object.assign(new Error(enOtra), { servidor: 409 });
-	const sinLeer = !ocup ? ['Airbnb, Booking o VRBO'] : ocup.sinLeer || [];
-	if (sinLeer.length && !revisado) throw Object.assign(new Error(`No pudimos leer el calendario de ${sinLeer.join(' y ')}: revisa allá que esas noches estén libres.`), { servidor: 409, faltaRevisar: sinLeer });
+	const ext = ocup || { sinLeer: ['Airbnb, Booking o VRBO'] };
+	const sinLeer = aRevisar(ext);
+	if (sinLeer.length && !revisado) throw Object.assign(new Error(textoSinLeer(ext)), { servidor: 409, faltaRevisar: sinLeer });
 	// Una reserva por solicitud: su id es el de la solicitud. Guarda su chat: con él se sabe si el cliente ya pagó.
 	const id = l.id;
 	const revisadoAMano = sinLeer.length && revisado ? sinLeer : [];

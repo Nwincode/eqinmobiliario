@@ -4,6 +4,7 @@
 // por el socio salen de lo mismo. Las fórmulas de precios y fechas son las de js/calc-vacacional.js.
 import '../../js/calc-vacacional.js';
 import { visibilidadDe } from './estados.js';
+import { nNoches } from './formato.js';
 
 const V = () => globalThis.EQVacacional;
 export const MOTIVOS_CANCELAR = ['Cliente canceló', 'Fechas ya no disponibles', 'Otro'];
@@ -151,6 +152,30 @@ export function montosCotizados(reserva, casa, privadoSocio) {
 	return { moneda: casa?.moneda || 'USD', costoSocio, alojamiento, limpieza, margen: r2(V().nochePublica(100, privadoSocio.margen) - 100),
 		ganancia: r2(alojamiento - costoSocio), delPlan, gananciaDelPlan, coincide };
 }
+// Lo que cuesta la estancia { llegada, salida } con lo guardado HOY en la casa (vacacional: base, finde, tarifas,
+// limpieza y depósito: lo mismo que /api/disponibilidad le manda a la página), con la misma cuenta de la página
+// (V.cotizarEstancia). /api/solicitud la compara con lo que se le mostró al cliente: si es otra, 409 y la página recarga
+// el precio (no se guarda una solicitud con una limpieza o un precio que ya no son).
+// Una sola pieza para las dos: condicionesDeLaCasa (lo que manda /api/disponibilidad) y lo que cotiza el servidor.
+export function condicionesDeLaCasa(casa, hoy = V().hoy()) {
+	const { r2 } = V();
+	const v = casa?.vacacional || {};
+	return {
+		plan: { base: Number(v.base) || 0, finde: Number(v.finde) || 0, tarifas: (v.tarifas || []).filter((x) => x?.hasta >= hoy) },
+		nochesMin: Math.max(1, Math.floor(Number(v.nochesMin) || 1)),
+		// Un mínimo con la fecha final antes de la inicial (dato malo) no vale.
+		minimos: (v.minimos || []).filter((x) => x?.hasta >= hoy && x.desde <= x.hasta),
+		limpieza: r2(Math.max(0, Number(v.limpieza) || 0)), deposito: r2(Math.max(0, Number(v.deposito) || 0))
+	};
+}
+export function cotizacionDeLaCasa(reserva, casa) {
+	const c = condicionesDeLaCasa(casa);
+	return V().cotizarEstancia({ plan: c.plan, llegada: reserva?.llegada, salida: reserva?.salida, limpieza: c.limpieza, deposito: c.deposito });
+}
+export const cotizacionCambio = (reserva, casa) => {
+	const c = cotizacionDeLaCasa(reserva, casa);
+	return Math.abs(c.subtotal - Number(reserva?.subtotal)) > 0.005 || Math.abs(c.deposito - Number(reserva?.deposito || 0)) > 0.005;
+};
 // Cotizado por debajo del plan (o en cero): lo confirma el administrador (el socio, ni en el panel ni en el servidor).
 export const bajoElPlan = (m) => Boolean(m) && (!(m.alojamiento > 0) || (!m.coincide && m.delPlan > 0 && m.alojamiento < m.delPlan));
 export const TEXTO_CONFIRMA_EQUIPO = 'Se le cotizó menos que el precio de la casa';
@@ -229,7 +254,17 @@ export function motivoParaNoConfirmar(lead, casa, montos, ahora = Date.now()) {
 	// La casa cambió de moneda después de la solicitud: los montos no se comparan entre monedas.
 	const moneda = casa.moneda || 'USD';
 	if ((lead?.reserva?.moneda || 'USD') !== moneda || (montos && montos.moneda !== moneda)) return 'La casa cambió de moneda después de esta solicitud: no se puede confirmar así. Ciérrala con «No se dio» y que el cliente la pida otra vez.';
+	// Menos noches que el mínimo de la casa (el general o el de esas fechas, guardados hoy): la misma regla de la página.
+	const corta = minimoQueFalta(lead?.reserva, casa);
+	if (corta) return `Son ${nNoches(V().nochesEntre(lead.reserva.llegada, lead.reserva.salida))} y la casa pide al menos ${corta} en esas fechas: no se puede confirmar. Ciérrala con «No se dio».`;
 	return '';
+}
+// El mínimo de noches que la estancia { llegada, salida } no cumple con lo guardado en la casa (vacacional.nochesMin y
+// vacacional.minimos), o 0 si lo cumple. La misma regla que la página (V.validarEstancia): la usan /api/solicitud (al
+// guardar) y motivoParaNoConfirmar (al confirmar, en el servidor y en el panel).
+export function minimoQueFalta(reserva, casa) {
+	const v = V().validarEstancia({ llegada: reserva?.llegada, salida: reserva?.salida, nochesMin: casa?.vacacional?.nochesMin, minimos: casa?.vacacional?.minimos });
+	return v.error === 'minimo' ? v.minimo : 0;
 }
 
 // ¿La casa tiene su dirección guardada (privado/llegada)? Sin ella, «Pago recibido» no manda dónde llegar.
@@ -265,6 +300,20 @@ export function apartadaPor(lead, reservas) {
 }
 // ¿Alguna noche de la estancia ya está tomada en Airbnb, Booking o VRBO? `externas`: [{ desde, hasta, fuente }] (sus
 // calendarios iCal). Devuelve el motivo en una línea (409 en el servidor y en el panel) o ''.
+// Al confirmar, lo que quien confirma tiene que revisar a mano en la plataforma («Revisé …»): lo que no se pudo leer
+// (`sinLeer`) y también lo que no respondió y se tomó de lo último guardado (`deHace`: [{ nombre, minutos }]; sus noches
+// siguen bloqueando). Lo mismo en el servidor (el socio, /api/reservas) y en el panel (el administrador, con /al-dia).
+// La ficha pública no pregunta nada: usa lo guardado tal cual. `ext` = lo que devuelve externasDe (o /al-dia).
+export const aRevisar = (ext) => [...new Set([...(ext?.sinLeer || []), ...(ext?.deHace || []).map((c) => c.nombre)])];
+export const haceTexto = (min) => (min < 60 ? `${Math.max(1, Math.round(min))} min` : `${Math.round(min / 60)} h`);
+// El porqué, en una línea: «Airbnb no respondió; lo último que vimos es de hace 23 h: revisa allá que esas noches estén libres.»
+export function textoSinLeer(ext) {
+	const deHace = new Map((ext?.deHace || []).map((c) => [c.nombre, Number(c.minutos) || 1]));
+	const nunca = (ext?.sinLeer || []).filter((n) => !deHace.has(n));
+	const partes = [...(nunca.length ? [`No pudimos leer el calendario de ${nunca.join(' y ')}`] : []),
+		...[...deHace].map(([nombre, min]) => `${nombre} no respondió; lo último que vimos es de hace ${haceTexto(min)}`)];
+	return `${partes.join('. ')}: revisa allá que esas noches estén libres.`;
+}
 export function choqueExterno(reserva, externas) {
 	const x = (externas || []).find((r) => seCruzan(reserva, { llegada: r.desde, salida: r.hasta }));
 	return x ? `Esas fechas ya están ocupadas en ${x.fuente || 'otra plataforma'} (${x.desde} a ${x.hasta}): no se puede confirmar. Ciérrala con «No se dio».` : '';

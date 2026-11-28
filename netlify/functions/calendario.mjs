@@ -1,14 +1,16 @@
 // El calendario de EQ de una casa por noche, para Airbnb, Booking y VRBO: así esas plataformas saben qué noches ya
 // reservó un cliente de EQ y no las venden otra vez.
-//   GET /api/calendario?casa=<id>&t=<llave>   → text/calendar con las reservas confirmadas (y pagadas) de la casa:
-//     solo fechas, sin nombres ni datos del huésped (V.aICal). La llave es privada: sin ella, 404.
+//   GET /api/calendario?casa=<id>&t=<llave>   → text/calendar con las reservas confirmadas (y pagadas) de la casa y las
+//     fechas que bloqueó su dueño (vacacional.bloqueos: { desde, hasta } con «hasta» el día que queda libre, el calendario
+//     del dueño y la ficha): solo fechas, sin nombres ni datos del huésped (V.aICal). La llave es privada: sin ella, 404.
 //   GET /api/calendario?casa=<id> con el token del panel (el administrador o el dueño de la casa) → { url }: el enlace
 //     para pegar en la plataforma. La llave se crea la primera vez (properties/{id}/privado/calendario, con la cuenta
 //     de escritura: en su propio documento, así privado/socio sigue sin existir hasta que haya precios) y sigue igual;
 //     para cambiarla, el administrador borra ese documento y la vuelve a pedir.
-// No van las noches que vienen de esas plataformas (cada una ya las tiene) ni las solicitudes sin confirmar.
-// Ojo: Airbnb vuelve a mandar en su propio calendario lo que importa de aquí; una reserva de EQ que se cancela queda
-// ocupada en el sitio hasta que Airbnb lea este calendario otra vez (unas horas).
+// No van las noches que vienen de esas plataformas (cada una ya las tiene: viven en sus calendarios iCal, nunca en
+// `bloqueos`) ni las solicitudes sin confirmar.
+// Ojo: Airbnb vuelve a mandar en su propio calendario lo que importa de aquí; una reserva de EQ que se cancela, o un
+// bloqueo que el dueño quita, queda ocupado en el sitio hasta que Airbnb lea este calendario otra vez (unas horas).
 import '../../js/calc-vacacional.js';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import siteConfig from '../../site.config.json' with { type: 'json' };
@@ -65,8 +67,12 @@ export default async (req) => {
 	// Una llave de otro dueño (la casa cambió de dueño) ya no sirve.
 	if (!igual(llave, guardada) || casa?.operacion !== 'vacacional' || (doc.propietarioId || '') !== (casa.propietarioId || '')) return new Response('No existe', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
 	const desde = V.sumarDias(V.hoy(), -30);
-	const estancias = (await donde('reservas', 'propertyId', id)).filter((r) => r.estado === 'confirmada' && V.esFecha(r.llegada) && r.salida > desde)
+	const reservas = (await donde('reservas', 'propertyId', id)).filter((r) => r.estado === 'confirmada' && V.esFecha(r.llegada) && r.salida > desde)
 		.map((r) => ({ id: r.id, desde: r.llegada, hasta: r.salida }));
+	// Los bloqueos del dueño, cada uno con un id que no cambia mientras no cambien sus fechas (la plataforma lo reconoce).
+	const bloqueos = V.unirRangos(casa.vacacional?.bloqueos || []).filter((b) => b.hasta > desde)
+		.map((b) => ({ id: `bloqueo-${b.desde}-${b.hasta}`, desde: b.desde, hasta: b.hasta }));
+	const estancias = [...reservas, ...bloqueos];
 	const sello = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
 	return new Response(V.aICal(estancias, sello), { status: 200, headers: {
 		'Content-Type': 'text/calendar; charset=utf-8',

@@ -1188,6 +1188,14 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera(`${nombre} crea apartadasCasa`, lote(quien, [docu('apartadasCasa/otra', { lista: [] })]), false);
 		await espera(`${nombre} cambia apartadasCasa`, lote(quien, [{ update: { name: `${RAIZ}/apartadasCasa/casa1`, fields: campos({ lista: [] }) } }]), false);
 	}
+	// Los códigos de reserva ya dados (codigosReserva/{codigo}, los pone /api/solicitud para que no se repitan): solo el servidor.
+	await poner('codigosReserva/EQ-AAAAAA', { leadId: 'lead1', propertyId: 'casa1' });
+	for (const [quien, nombre] of [[null, 'sin sesión'], ['socio1', 'el socio'], ['admin1', 'el administrador']]) {
+		await espera(`${nombre} lee codigosReserva`, leer(quien, 'codigosReserva/EQ-AAAAAA'), false);
+		await espera(`${nombre} lista codigosReserva`, consulta(quien, 'codigosReserva'), false);
+		await espera(`${nombre} crea un código de reserva`, lote(quien, [docu('codigosReserva/EQ-BBBBBB', { leadId: 'x' })]), false);
+		await espera(`${nombre} borra un código de reserva`, lote(quien, [{ delete: `${RAIZ}/codigosReserva/EQ-AAAAAA` }]), false);
+	}
 	// Las alertas de «No se dio» con fechas ocupadas (alertas/bloqueo-{id}) también: solo el servidor, para que nadie
 	// las borre y el aviso salga otra vez, ni marque una como avisada para que no salga.
 	await espera('el administrador lee una alerta de bloqueo', leer('admin1', 'alertas/bloqueo-x'), false);

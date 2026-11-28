@@ -104,9 +104,10 @@ export async function rutasDeGrupo(coleccion) {
 	}
 }
 
-// Documentos de una colección con `campo` desde `valor` (incluido; un texto, como una fecha 'AAAA-MM-DD', o un número), del menor
+// Documentos de una colección con un filtro de rango sobre `campo` (`op` y `valor` ya en la forma de Firestore), del menor
 // al mayor, de 300 en 300 hasta `tope`. Un solo filtro de rango: usa el índice que Firestore crea solo para cada campo.
-export async function consultar(coleccion, campo, valor, { tope = 3000 } = {}) {
+// Una sola pieza para `consultar` y `desde`. Con el tope lleno, lo que sigue no se leyó: queda en el registro.
+async function enRango(coleccion, campo, op, valor, tope, nombre, texto) {
 	const token = await googleToken(SCOPE_DATOS);
 	const docs = [];
 	let despues = null;
@@ -116,7 +117,7 @@ export async function consultar(coleccion, campo, valor, { tope = 3000 } = {}) {
 			headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
 			body: JSON.stringify({ structuredQuery: {
 				from: [{ collectionId: coleccion }],
-				where: { fieldFilter: { field: { fieldPath: campo }, op: 'GREATER_THAN_OR_EQUAL', value: typeof valor === 'number' ? { integerValue: String(valor) } : { stringValue: String(valor) } } },
+				where: { fieldFilter: { field: { fieldPath: campo }, op, value: valor } },
 				orderBy: [{ field: { fieldPath: campo }, direction: 'ASCENDING' }, { field: { fieldPath: '__name__' }, direction: 'ASCENDING' }],
 				...(despues ? { startAt: { values: despues, before: false } } : {}),
 				limit: Math.min(300, tope - docs.length)
@@ -129,26 +130,18 @@ export async function consultar(coleccion, campo, valor, { tope = 3000 } = {}) {
 		const ultimo = pagina.at(-1);
 		despues = [ultimo.fields?.[campo] || { nullValue: null }, { referenceValue: ultimo.name }];
 	}
-	// Con el tope lleno, lo que sigue no se leyó: queda en el registro de la función.
-	if (docs.length >= tope) console.warn(`consultar: ${coleccion} llegó al tope de ${tope} (${campo} desde ${valor}); los siguientes no se leyeron.`);
+	if (docs.length >= tope) console.warn(`${nombre}: ${coleccion} llegó al tope de ${tope} (${campo} ${texto}); los siguientes no se leyeron.`);
 	return docs;
 }
 
-// Documentos de una colección cuyo campo de fecha es posterior a `fecha` (hasta 500).
-export async function desde(coleccion, campo, fecha) {
-	const token = await googleToken(SCOPE_DATOS);
-	const res = await fetch(`${BASE}:runQuery`, {
-		method: 'POST',
-		headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-		body: JSON.stringify({ structuredQuery: {
-			from: [{ collectionId: coleccion }],
-			where: { fieldFilter: { field: { fieldPath: campo }, op: 'GREATER_THAN', value: { timestampValue: fecha.toISOString() } } },
-			limit: 500
-		} })
-	});
-	if (!res.ok) throw new Error(`Error ${res.status} al consultar ${coleccion}`);
-	return (await res.json()).filter((r) => r.document).map((r) => documento(r.document));
-}
+// Documentos de una colección con `campo` desde `valor` (incluido; un texto, como una fecha 'AAAA-MM-DD', o un número).
+export const consultar = (coleccion, campo, valor, { tope = 3000 } = {}) => enRango(coleccion, campo, 'GREATER_THAN_OR_EQUAL',
+	typeof valor === 'number' ? { integerValue: String(valor) } : { stringValue: String(valor) }, tope, 'consultar', `desde ${valor}`);
+
+// Documentos de una colección cuyo campo de fecha es posterior a `fecha`, de la más vieja a la más nueva (todos, de 300 en
+// 300, hasta `tope`; antes eran 500 sin aviso y lo de después no se veía: plazos-reservas, apartadasDe).
+export const desde = (coleccion, campo, fecha, { tope = 3000 } = {}) => enRango(coleccion, campo, 'GREATER_THAN',
+	{ timestampValue: fecha.toISOString() }, tope, 'desde', `después de ${fecha.toISOString()}`);
 
 // Documentos de una colección interna con `campo` == `valor` (un texto o un sí/no; hasta 1,000). `campo` puede ir anidado
 // ('comision.vence'): usa el índice que Firestore crea solo para cada campo.
