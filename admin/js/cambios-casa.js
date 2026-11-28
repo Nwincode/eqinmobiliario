@@ -115,6 +115,8 @@ export function vacacionalPublico(d) {
 			checkIn: v.checkIn || '15:00', checkOut: v.checkOut || '11:00',
 			camas: Math.max(0, Math.floor(Number(v.camas) || 0)), mascotas: v.mascotas || '',
 			comoLlegar: v.comoLlegar || '', reglas: v.reglas || '', cancelacion: v.cancelacion || '',
+			// Solo si se eligió: las casas de antes no cambian al guardarse.
+			...(v.cancelacionPolitica ? { cancelacionPolitica: v.cancelacionPolitica } : {}),
 			bloqueos
 			// Los mínimos de noches (los pone el dueño) y las noches reservadas (Solicitudes y Rentas) no salen de
 			// aquí: guardarCambios los deja como están en la base.

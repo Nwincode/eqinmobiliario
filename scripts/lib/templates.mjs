@@ -8,6 +8,7 @@ import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2, M2_A_V2, fmt, textosClie
 import { cssTema, colorTema } from '../../admin/js/tema-def.js';
 import { estadoDe, precioVisible, esDePrueba } from '../../admin/js/estados.js';
 import { puntosConIcono } from '../../admin/js/puntos.js';
+import { textoCancelacion } from '../../admin/js/cancelacion.js';
 import { CODIGOS_PAIS, enUSD, piesCuadrados } from '../../admin/js/formato.js';
 import { autoSeoTitle as autoSeoTitleBase, autoSeoDescripcion, huespedesDe, recortar, TITULO_MAX, direccionEsLugar } from '../../admin/js/seo-auto.js';
 import { readFileSync } from 'node:fs';
@@ -1072,7 +1073,8 @@ const iconoTexto = (texto, generico) => (ICONOS_TEXTO.find(([re]) => re.test(Str
 const lineas = (texto) => String(texto || '').split('\n').map((x) => x.trim()).filter(Boolean);
 
 // Lo que un huésped pregunta antes de reservar: horarios, cargos, mascotas, cómo llegar, reglas y cancelación.
-// Reglas y cancelación: las de la casa o, si no tiene, las generales de Contenido → Textos.
+// Reglas y cancelación: las de la casa o, si no tiene, las generales de Contenido → Textos. Cancelación: la política
+// elegida, en el idioma de la página (admin/js/cancelacion.js), y la nota de la casa.
 function antesDeReservar(p) {
 	const t = TEXTOS[lng(p)];
 	const v = p.vacacional || {};
@@ -1092,7 +1094,7 @@ function antesDeReservar(p) {
 	])}
 						${nota('directions_car', t.vacComoLlegar, v.comoLlegar)}
 						${reglas.length ? `<div class="ficha-nota"><strong>${ic('list-ul')}${t.vacReglas}</strong><ul class="ficha-amenidades">${reglas.map((r) => `<li>${ic(iconoTexto(r, 'info-circle'))}${esc(r)}</li>`).join('')}</ul></div>` : ''}
-						${nota('calendar-times-o', t.vacCancelacion, v.cancelacion || t.vacCancelacionGeneral)}
+						${nota('calendar-times-o', t.vacCancelacion, textoCancelacion(v.cancelacionPolitica, v.cancelacion, lng(p)) || t.vacCancelacionGeneral)}
 					</section>`;
 }
 

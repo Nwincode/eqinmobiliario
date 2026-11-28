@@ -32,6 +32,20 @@ export function canalDe(texto) {
 	return 'otro';
 }
 
+// Fuente de un cliente (Clientes → Fuente) y por qué se perdió (se pregunta al pasarlo a «Perdido»): listas fijas. Lo
+// guardado antes como texto libre se sigue mostrando tal cual. canalDe las entiende todas (Reportes y el portal).
+export const FUENTES_CLIENTE = ['Sitio web', 'Google', 'Facebook', 'Instagram', 'Encuentra24', 'WhatsApp', 'Referido', 'Rótulo', 'Otro'];
+export const MOTIVOS_PERDIDA = ['Precio', 'Encontró otra', 'Crédito no aprobado', 'Dejó de responder', 'Ya no busca', 'Otro'];
+// La fuente del cliente que llega de un formulario del sitio, en la lista si se reconoce (si no, como vino).
+export function fuenteDeLead(l = {}) {
+	const s = String(l.campana?.utm_source || '').trim();
+	const x = s.toLowerCase();
+	const deLista = /google/.test(x) ? 'Google' : /instagram|^ig$/.test(x) ? 'Instagram' : /facebook|^fb$|^meta$/.test(x) ? 'Facebook'
+		: /encuentra/.test(x) ? 'Encuentra24' : /whats|^wa$/.test(x) ? 'WhatsApp' : '';
+	if (deLista || s) return deLista || s;
+	return !l.origen || ORIGENES_WEB.has(l.origen) ? 'Sitio web' : l.origen;
+}
+
 function canalLead(l) {
 	const c = l.campana || {};
 	if (c.gclid || c.fbclid || /cpc|paid|ads/i.test(c.utm_medium || '')) return 'anuncio';

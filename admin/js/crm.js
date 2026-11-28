@@ -8,6 +8,7 @@ import { session } from './session.js';
 import { telefonoWa as telNorm, dinero, esPorcentaje, idClientePorContacto, correoValido, fechaHora, enMs } from './formato.js';
 import { REGLAS_POR_DEFECTO, comisionDe, montoComision, textoComision } from './acuerdo.js';
 import { queCorreoCorregido } from './reservas-calculo.js';
+import { fuenteDeLead } from './portal-clientes.js';
 
 export const ETAPAS = [
 	['nuevo', 'Nuevo', 'secondary'],
@@ -245,7 +246,7 @@ export async function sincronizarLeads(leads, clientes) {
 				tipo: 'comprador',
 				etapa: 'nuevo',
 				agentId,
-				fuente: l.campana?.utm_source || l.origen || '',
+				fuente: fuenteDeLead(l),
 				idioma: l.idioma || 'es',
 				interes: l.propertyId ? [l.propertyId] : [],
 				leadIds: [l.id],

@@ -1,6 +1,6 @@
 // Pruebas de los clientes interesados y eventos automáticos del portal (admin/js/portal-clientes.js): `npm run test:portal`.
 import assert from 'node:assert/strict';
-import { clientesInteresados, eventosAuto, canalDe, etapaPortal, MAX_CLIENTES, numerarClientes, combinarClientes } from '../admin/js/portal-clientes.js';
+import { clientesInteresados, eventosAuto, canalDe, etapaPortal, MAX_CLIENTES, numerarClientes, combinarClientes, FUENTES_CLIENTE, fuenteDeLead } from '../admin/js/portal-clientes.js';
 
 let ok = 0;
 const t = (nombre, fn) => { fn(); ok++; console.log('✓', nombre); };
@@ -52,6 +52,16 @@ t('máximo 30, los más recientes con su número real', () => {
 	assert.equal(r.length, MAX_CLIENTES);
 	assert.equal(r[0].n, 16);
 	assert.equal(r[r.length - 1].n, 45);
+});
+t('la lista de fuentes del cliente cae cada una en su canal (Reportes y el portal)', () => {
+	const canales = Object.fromEntries(FUENTES_CLIENTE.map((f) => [f, canalDe(f)]));
+	assert.deepEqual(canales, { 'Sitio web': 'web', Google: 'web', Facebook: 'redes', Instagram: 'redes', Encuentra24: 'portal', WhatsApp: 'whatsapp',
+		Referido: 'referido', 'Rótulo': 'llamada', Otro: 'otro' });
+	assert.equal(fuenteDeLead({ campana: { utm_source: 'google' }, origen: 'propiedad' }), 'Google');
+	assert.equal(fuenteDeLead({ campana: { utm_source: 'fb' } }), 'Facebook');
+	assert.equal(fuenteDeLead({ campana: { utm_source: 'newsletter' } }), 'newsletter');
+	assert.equal(fuenteDeLead({ origen: 'contacto' }), 'Sitio web');
+	assert.equal(fuenteDeLead({}), 'Sitio web');
 });
 t('canalDe y etapaPortal', () => {
 	assert.equal(canalDe('Facebook Marketplace'), 'portal');

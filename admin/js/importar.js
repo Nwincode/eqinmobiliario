@@ -1,5 +1,6 @@
 // Lógica pura de la importación masiva y del código de propiedad.
 // Sin DOM ni Firebase: se puede probar con Node (CSV, números, códigos, zip, fotos).
+import { municipioDe, nombreRepetido } from './lugares.js';
 import '../../js/calc-vacacional.js';
 import { sinMarcaCsv } from './formato.js';
 
@@ -233,6 +234,26 @@ export function siglasCondominio(siglas, direccion) {
 	return palabras.slice(0, 4).map((w) => w[0]).join('').toUpperCase();
 }
 
+// Siglas ya usadas en el inventario, para sugerirlas en la ficha: las escritas o, si no, las del código (VLM-Z16-…), con el
+// nombre del condominio (la dirección más repetida) y cuántas casas. [['', [{ texto: 'VLM · Vista de las Lomas', nota, valor }]]]
+export function opcionesSiglas(props = []) {
+	const por = new Map();
+	for (const p of props) {
+		const s = normalizarCodigo(p.condominioSiglas).replace(/-/g, '') || (/^([A-Z0-9]{2,6})-/.exec(normalizarCodigo(p.codigo)) || [])[1] || '';
+		if (!s || s === 'IND') continue;
+		const x = por.get(s) || { n: 0, nombres: new Map() };
+		x.n += 1;
+		const nombre = String(p.direccion || '').split(/[,;(]/)[0].trim().slice(0, 40);
+		if (nombre) x.nombres.set(nombre, (x.nombres.get(nombre) || 0) + 1);
+		por.set(s, x);
+	}
+	const ops = [...por.entries()].sort((a, b) => b[1].n - a[1].n || a[0].localeCompare(b[0])).map(([s, x]) => {
+		const nombre = [...x.nombres.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+		return { texto: nombre ? `${s} · ${nombre}` : s, nota: `${x.n} ${x.n === 1 ? 'propiedad' : 'propiedades'}`, valor: s };
+	});
+	return ops.length ? [['', ops]] : [];
+}
+
 // Zona: "Zona 15" → Z15; sin número → 3 primeras letras de la ciudad.
 export function zonaCodigo(zona, ciudad) {
 	const m = String(zona || '').match(/\d+/);
@@ -333,6 +354,11 @@ export function filaAPropiedad(fila, { opciones, agentes = [], duenos = [] }) {
 	}
 	for (const c of ['zona', 'ciudad', 'direccion', 'descripcion']) if (txt(c)) datos[c] = txt(c);
 	if (/^\d+$/.test(datos.zona || '')) datos.zona = `Zona ${datos.zona}`; // "15" → "Zona 15"
+	// El municipio con el nombre de la tabla y su departamento («antigua» → Antigua Guatemala, Sacatepéquez). Uno que no
+	// está en la tabla queda tal cual.
+	// Un nombre repetido (San José, La Libertad) va sin departamento: el CSV no lo trae y no se adivina.
+	const muni = datos.ciudad && municipioDe(datos.ciudad);
+	if (muni) Object.assign(datos, { ciudad: muni.municipio }, nombreRepetido(muni.municipio) ? {} : { departamento: muni.departamento });
 	if (txt('condominio_siglas')) datos.condominioSiglas = normalizarCodigo(txt('condominio_siglas')).replace(/-/g, '');
 	if (txt('amenidades')) datos.amenidades = parseLista(txt('amenidades'));
 	if (txt('video')) {

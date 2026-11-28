@@ -76,6 +76,13 @@ test('zona escrita distinto («zona 10», «Zona 10 »): una sola página con to
 	assert.equal(zonas[0].indexable, true);
 });
 
+test('sin aldea fuera de la capital, la casa se lista con su municipio; en la capital sin zona no se inventa', () => {
+	const props = unificarZonas([p({ zona: '', ciudad: 'San Miguel Dueñas', departamento: 'Sacatepéquez' }), p({ zona: ' ', ciudad: 'Guatemala' }), p({ zona: 'Aldea Los Llanos', ciudad: 'San Miguel Dueñas' })]);
+	assert.deepEqual(props.map((x) => x.zona), ['San Miguel Dueñas', '', 'Aldea Los Llanos']);
+	// Con el nombre de la tabla: «antigua» no abre /propiedades/antigua/ al lado de «Antigua Guatemala».
+	assert.equal(unificarZonas([p({ zona: '', ciudad: 'antigua' })])[0].zona, 'Antigua Guatemala');
+});
+
 test('no se genera una página cuya lista es igual a la de su padre', () => {
 	// Una sola zona: la zona sería igual a «todas».
 	assert.equal(buscar(planListados([p({ zona: 'Zona 16' }), p({ zona: 'Zona 16' }), p({ zona: 'Zona 16' })]), 'zona', { zona: 'Zona 16' }), null);

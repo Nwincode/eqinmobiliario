@@ -14,7 +14,9 @@ import { pedirIA } from '../ia.js';
 import { tituloEn, tituloEnViejo, enCorregido } from '../reglas.js';
 import { updateDoc, SITIO } from '../firebase.js';
 import { ESTADOS_PROPIEDAD, amenidadesPara, amenidadesEnDe, precioVisible, textosConPrecioOculto, mascotasUnaVez, estadosPara, tipoAplica, incoherencia, OPERACIONES, TIPOS, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
-import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '../importar.js';
+import { generarCodigo, normalizarCodigo, siglasCondominio, opcionesSiglas, PLANTILLA } from '../importar.js';
+import { opcionesMunicipio, opcionesZona, municipioTexto, municipioDe, esCapital, pideZona, departamentoDe, mismoMunicipio } from '../lugares.js';
+import { opcionesCancelacion } from '../cancelacion.js';
 import { revisar, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
 import { generarDescripcion } from '../descripcion.js';
@@ -931,8 +933,9 @@ export async function render(container, [id]) {
 
 // `paraSocio`: la misma ficha para el socio que sube su casa nueva («Mis propiedades» → «Agregar casa»): sin lo del equipo
 // (paraElSocio). { colaborador }: el colaborador elige el asesor de su casa en venta o renta.
-function schema(agentOpts, isNew, socioOpts, ajeno = false, casaId = '', paraSocio = null) {
-	const campos = camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno, casaId);
+// `inventario`: las casas que ve quien edita (para sugerir zonas y siglas ya usadas).
+function schema(agentOpts, isNew, socioOpts, ajeno = false, casaId = '', paraSocio = null, inventario = []) {
+	const campos = camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno, casaId, inventario);
 	return paraSocio ? paraElSocio(campos, paraSocio) : campos;
 }
 // Lo que el socio no ve en su casa nueva: lo pone el servidor (dueño, URL, código, estado, visible) o es del equipo
@@ -965,13 +968,16 @@ function paraElSocio(campos, { colaborador = false } = {}) {
 		if (oculto) return { ...f, when: () => false };
 		if (f.type === 'section' && f.label === 'Fotos') return { ...f, help: 'Al menos 5 (hasta 40). La primera es la portada.' };
 		const g = { ...f, ...(PARA_EL_SOCIO[f.name] || {}) };
-		if (OBLIGATORIOS_SOCIO.has(f.name)) g.required = true;
+		if (OBLIGATORIOS_SOCIO.has(f.name)) g.required = f.name === 'zona' ? pideZona : true;
 		// El asesor solo lo elige el colaborador, y solo en venta o renta (por noche no lleva).
 		if (f.name === 'agentId') Object.assign(g, { disabled: !colaborador, when: (d) => colaborador && !esVacacional(d) });
 		return g;
 	});
 }
-function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = '') {
+// El municipio de una casa de antes sin departamento: si es un municipio de la tabla, con el suyo.
+const departamentoGuardado = (d) => d.departamento || (municipioDe(d.ciudad)?.municipio === String(d.ciudad || '').trim() ? municipioDe(d.ciudad).departamento : '');
+function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = '', inventario = []) {
+	const otras = inventario.filter((p) => p.id !== casaId);
 	// La landing VIP no tiene caja de reserva: una casa por noche siempre usa su ficha normal.
 	const vip = (d) => Boolean(d.vip) && !esVacacional(d);
 	const conDueno = (d) => Boolean(d.propietarioId);
@@ -986,8 +992,10 @@ function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = ''
 		{ type: 'section', label: 'Datos principales' },
 		{ name: 'titulo', label: 'Título', required: true, maxlength: 90, cols: 8, placeholder: 'Ej. Casa con jardín en Residencial San Antonio' },
 		{ name: 'slug', label: 'URL (slug)', cols: 4, help: 'Se genera solo a partir del título. Si la cambias, la URL anterior redirige a la nueva.', ref: (el) => { schema.slugInput = el; } },
+		// Las siglas ya usadas, con el nombre del condominio y cuántas casas; también se escriben unas nuevas.
+		{ name: 'condominioSiglas', label: 'Siglas del condominio', type: 'sugerido', libre: true, cols: 6, placeholder: 'VLM', opciones: () => opcionesSiglas(otras),
+			help: 'Elige una o escribe nuevas. Vacío: se toman del residencial; sin condominio, IND.' },
 		{ name: 'codigo', label: 'Código', cols: 6, placeholder: 'VLM-Z15-JA-001', help: 'Condominio, zona, asesor y número. Si lo dejas vacío, se crea solo al guardar.', ref: (el) => { schema.codigoInput = el; } },
-		{ name: 'condominioSiglas', label: 'Siglas del condominio', cols: 6, maxlength: 6, placeholder: 'VLM', help: 'Ej. VLM para Vista de las Lomas. Si lo dejas vacío, se toman del residencial; si no está en condominio, se usa IND.' },
 		{ name: 'operacion', label: 'Operación', type: 'select', options: OPERACIONES, cols: 3 },
 		{ name: 'tipo', label: 'Tipo', type: 'select', options: (d) => TIPOS.filter(([v]) => tipoAplica(v, d.operacion)), cols: 3 },
 		{ name: 'estado', label: 'Estado', type: 'select', options: (d) => estadosPara(d.operacion).map((e) => [e.valor, e.label]), cols: 3, help: 'Las cerradas (vendida, rentada) solo se abren con su enlace. Pausada y retirada: no se ven en ningún lado.' },
@@ -1008,9 +1016,20 @@ function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = ''
 		{ name: 'fotos', label: 'Galería', type: 'images', marca: true },
 
 		{ type: 'section', label: 'Ubicación', when: (d) => !esVacacional(d) },
-		{ type: 'section', label: 'Ubicación', when: esVacacional, help: 'En la página solo salen la zona y la ciudad. La dirección y el mapa son privados: el cliente los recibe cuando se marca el pago.' },
-		{ name: 'zona', label: 'Zona', cols: 4, placeholder: 'Zona 16' },
-		{ name: 'ciudad', label: 'Ciudad / municipio', cols: 4, placeholder: 'Guatemala' },
+		{ type: 'section', label: 'Ubicación', when: esVacacional, help: 'En la página solo salen la zona y el municipio. La dirección y el mapa son privados: el cliente los recibe cuando se marca el pago.' },
+		// Departamento → municipio → zona, como los portales de Guatemala: el municipio se busca en la lista (agrupada por
+		// departamento, que sale de él) y la zona se elige de las de la capital, los sectores y las ya usadas ahí (admin/js/lugares.js).
+		{ name: 'ciudad', label: 'Municipio', type: 'sugerido', cols: 4, colsCelular: 12, placeholder: 'Escribe el municipio', opciones: (d) => opcionesMunicipio(d),
+			mostrar: (d) => municipioTexto(d.ciudad, departamentoGuardado(d)),
+			elegir: (o, d) => {
+				const ciudad = o ? o.valor.ciudad : '', departamento = o ? o.valor.departamento : '';
+				// Otro municipio: la zona de antes ya no es de ahí (pasar «Ciudad de Guatemala» a «Guatemala, Guatemala» no la borra).
+				if (d.ciudad && !mismoMunicipio(d, { ciudad, departamento })) d.zona = '';
+				Object.assign(d, { ciudad, departamento });
+			} },
+		{ name: 'zona', label: 'Zona', type: 'sugerido', libre: true, cols: 4, colsCelular: 12,
+			etiqueta: (d) => (!d.ciudad || pideZona(d) ? 'Zona' : departamentoDe(d) === 'Guatemala' ? 'Zona / colonia (opcional)' : 'Aldea / colonia (opcional)'),
+			opciones: (d) => opcionesZona(d, otras) },
 		{ name: 'direccion', label: 'Residencial / dirección', cols: 4, colsCelular: 12 },
 		{ name: 'mapa', label: 'Mapa (opcional)', type: 'textarea', rows: 2, help: 'Pega el código "Insertar mapa" de Google Maps, o escribe la dirección o coordenadas.' },
 
@@ -1047,7 +1066,8 @@ function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = ''
 		{ name: 'vacacional.mascotas', label: 'Mascotas', type: 'select', options: [['', 'Sin indicar'], ['si', 'Se aceptan'], ['no', 'No se aceptan']], cols: 4, when: esVacacional },
 		{ name: 'vacacional.comoLlegar', label: 'Cómo llegar (opcional)', type: 'textarea', rows: 2, when: esVacacional, placeholder: 'A 45 min de la capital; los últimos 2 km son de terracería.' },
 		{ name: 'vacacional.reglas', label: 'Reglas de la casa (una por línea)', type: 'textarea', rows: 3, when: esVacacional, help: 'Vacío = las reglas generales de Contenido → Textos → Renta vacacional.' },
-		{ name: 'vacacional.cancelacion', label: 'Cancelación', type: 'textarea', rows: 2, when: esVacacional, help: 'Vacío = la política general de Contenido → Textos → Renta vacacional.' },
+		{ name: 'vacacional.cancelacionPolitica', label: 'Política de cancelación', type: 'opciones', options: opcionesCancelacion(), default: isNew ? 'moderada' : undefined, when: esVacacional },
+		{ name: 'vacacional.cancelacion', label: 'Nota (opcional)', when: esVacacional, placeholder: 'Ej. En Semana Santa no hay devolución.', help: 'El depósito siempre se devuelve.' },
 		// Un calendario por plataforma (V.CALENDARIOS): sus noches ocupadas se bloquean solas en la página.
 		...V.CALENDARIOS.map((c) => ({ name: `socio.${c.campo}`, label: `Calendario de ${c.nombre} (iCal, opcional)`, type: 'url', cols: 4, when: esVacacional, placeholder: 'https://….ics', help: AYUDA_ICAL[c.nombre] })),
 		// Y al revés: lo que reservan los clientes de EQ, para que esas plataformas lo bloqueen.
@@ -1118,7 +1138,7 @@ function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = ''
 		{ name: 'en.vipLanding.puntosClave', label: 'VIP highlights (English)', type: 'tags', when: vip },
 		{ name: 'en.vacacional.comoLlegar', label: 'Getting there (English)', type: 'textarea', rows: 2, when: esVacacional },
 		{ name: 'en.vacacional.reglas', label: 'House rules (English, one per line)', type: 'textarea', rows: 3, when: esVacacional },
-		{ name: 'en.vacacional.cancelacion', label: 'Cancellation (English)', type: 'textarea', rows: 2, when: esVacacional },
+		{ name: 'en.vacacional.cancelacion', label: 'Cancellation note (English)', when: esVacacional },
 		{ name: 'en.seo.titulo', label: 'Google title (English)', maxlength: 70, cols: 6 },
 		{ name: 'en.seo.descripcion', label: 'Google description (English)', maxlength: 160, cols: 6 },
 
@@ -1240,7 +1260,7 @@ async function renderEditor(container, id, emb = null) {
 	let cierreGuardado = isNew || paraSocio ? null : (await getDoc(doc(db, 'properties', ref.id, 'privado', 'cierre'))).data() || null;
 	const datosForm = { ...data, cierre: { fechaCierre: cierreGuardado?.fechaCierre || '', precioFinal: cierreGuardado?.precioFinal ?? '' }, acuerdo: acuerdoInicial, socio: { margen: V.MARGEN, ...(socioGuardado || {}) }, vacacional: { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(data.vacacional || {}) } };
 	mascotasUnaVez(datosForm);
-	const form = renderForm(schema(agentOpts, isNew, socioOpts, ajeno, isNew ? '' : ref.id, paraSocio ? { colaborador: session.dueno?.tipo === 'colaborador' } : null), datosForm, { folder: `properties/${ref.id}` });
+	const form = renderForm(schema(agentOpts, isNew, socioOpts, ajeno, isNew ? '' : ref.id, paraSocio ? { colaborador: session.dueno?.tipo === 'colaborador' } : null, all), datosForm, { folder: `properties/${ref.id}` });
 	// La ficha como estaba al abrirla (o al último «Guardar»): con eso se sabe qué cambió quien la edita y solo eso se
 	// guarda (guardarCambios). De una casa que no era por noche no hay nada por noche guardado: todo eso es nuevo.
 	const comoQuedo = (f) => {
@@ -1407,12 +1427,15 @@ async function renderEditor(container, id, emb = null) {
 		if (!d.slug) return toast('Escribe un título.', 'warning');
 		// La zona sin espacios de más; la forma de escribirla la unifica el sitio (landings.mjs `unificarZonas`).
 		d.zona = String(d.zona || '').trim().replace(/\s+/g, ' ');
+		// El municipio con su departamento (San José o La Libertad hay en dos): uno de antes sin él lo toma de la tabla.
+		if (departamentoGuardado(d)) d.departamento = departamentoGuardado(d);
 		const clash = all.find((p) => p.id !== ref.id && p.slug === d.slug);
 		if (clash) return toast(`La URL "${d.slug}" ya la usa "${clash.titulo}". Cámbiala.`, 'warning');
 		if (!session.isAdmin) d.agentId = session.agentId;
 		// Código único: si está vacío en una propiedad nueva, se genera.
 		d.codigo = normalizarCodigo(d.codigo);
-		d.condominioSiglas = normalizarCodigo(d.condominioSiglas).replace(/-/g, '');
+		// Hasta 6 letras (el campo deja escribir más para buscar por el nombre del condominio).
+		d.condominioSiglas = normalizarCodigo(d.condominioSiglas).replace(/-/g, '').slice(0, 6);
 		if (!d.codigo && isNew) d.codigo = generarCodigo(d, { agentes, codigos: codigosUsados() });
 		const otraCodigo = d.codigo && all.find((p) => p.id !== ref.id && normalizarCodigo(p.codigo) === d.codigo);
 		if (otraCodigo) {
