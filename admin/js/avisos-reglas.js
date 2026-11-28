@@ -21,13 +21,14 @@ export function hace(desde, ahora = Date.now()) {
 // La foto: `fin` es el mensaje (otra foto nueva vuelve a avisar).
 export const claveListo = ({ tipo, objeto, fin }) => (tipo === 'exclusiva' || tipo === 'foto' ? `${tipo}_${objeto}_${fin}` : `${tipo}_${objeto}`);
 
-// Los pedidos de los dueños que esperan al equipo (la campana y «Cambios de los dueños», la misma lista): los de los
-// últimos DIAS_COMENTARIO días; un pedido de cambios con una aprobación más nueva de la misma casa ya no espera; un
-// cierre («ya se vendió») siempre espera hasta que se atienda. comentarios: los docs de comentariosPropietarios con
+// Los pedidos de los dueños que esperan al equipo (la campana y «Cambios de los dueños», la misma lista): los de cambios,
+// de los últimos DIAS_COMENTARIO días y sin una aprobación más nueva de la misma casa; un cierre («ya se vendió») espera
+// hasta que se atienda, sin plazo (cambia la casa y Reportes: no se pierde solo). comentarios: los docs de comentariosPropietarios con
 // `fecha` en ms. (Los ya atendidos los quita quien llama, con avisosAtendidos.)
+const enPlazo = (c, ahora) => ahora - c.fecha <= DIAS_COMENTARIO * DIA;
 export function pedidosPorAtender(comentarios = [], ahora = Date.now()) {
-	return comentarios.filter((c) => c.fecha && ahora - c.fecha <= DIAS_COMENTARIO * DIA
-		&& (c.tipo === 'cierre' || (c.tipo === 'cambios' && !comentarios.some((x) => x.tipo === 'aprobado' && x.propiedadId === c.propiedadId && x.fecha > c.fecha))));
+	return comentarios.filter((c) => c.fecha && (c.tipo === 'cierre' || (c.tipo === 'cambios' && enPlazo(c, ahora)
+		&& !comentarios.some((x) => x.tipo === 'aprobado' && x.propiedadId === c.propiedadId && x.fecha > c.fecha))));
 }
 
 const recorta = (t, n) => { const s = String(t || '').replace(/\s+/g, ' ').trim(); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
@@ -105,7 +106,7 @@ export function armarAvisos({ solicitudes = [], mensajes = [], fotos = [], compr
 		detalle: [c.codigo, c.casa, 'sube el comprobante'].filter(Boolean).join(' · ')
 	});
 	for (const c of comentarios) {
-		if (!c.fecha || ahora - c.fecha > DIAS_COMENTARIO * DIA) continue;
+		if (!c.fecha || (c.tipo !== 'cierre' && !enPlazo(c, ahora))) continue;
 		const listo = { tipo: 'cambios', objeto: c.id, agentId: c.agentId || '' };
 		const clave = claveListo(listo);
 		if (atendidos.has(clave)) continue;
@@ -149,7 +150,7 @@ export function clavesPorRevisar({ solicitudes = [], fotos = [], comentarios = [
 	return [
 		...solicitudes.filter((s) => s.alerta === 'bloqueada' && s.leadId).map((s) => claveListo({ tipo: 'robo', objeto: s.leadId })),
 		...fotos.map((f) => claveListo({ tipo: 'foto', objeto: f.leadId, fin: f.mensaje })),
-		...comentarios.filter((c) => c.fecha && ahora - c.fecha <= DIAS_COMENTARIO * DIA).map((c) => claveListo({ tipo: 'cambios', objeto: c.id })),
+		...comentarios.filter((c) => c.fecha && (c.tipo === 'cierre' || enPlazo(c, ahora))).map((c) => claveListo({ tipo: 'cambios', objeto: c.id })),
 		...exclusivas.filter((e) => e.fin && enVentana(e.dias)).map((e) => claveListo({ tipo: 'exclusiva', objeto: e.casaId, fin: e.fin }))
 	];
 }

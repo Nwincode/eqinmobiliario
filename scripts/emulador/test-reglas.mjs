@@ -663,6 +663,14 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		const cambio = (id, fotos) => com(TM, 'm1', 'a7', 'mx-venta', { tipo: 'cambios', texto: 'Pinté la fachada', fotos });
 		const cierre = (extra = {}) => com(TM, 'm1', 'a7', 'mx-venta', { tipo: 'cierre', fechaCierre: '2026-11-26', ...extra });
 		const foto = (id, n, casa = 'mx-venta') => `pedidosDueno/${casa}/${id}/${n}.webp`;
+		// La carpeta la aparta el servidor (pedidosDueno/{id}, /api/pedido-dueno): sin apartado vigente de esa casa, sin fotos.
+		const apartar = (id, { casa = 'mx-venta', haceH = 0, propietarioId = 'm1' } = {}) => raw(`pedidosDueno/${id}`, { propietarioId: sv(propietarioId), uid: sv('mixto1'), casa: sv(casa), cuando: { timestampValue: new Date(Date.now() - haceH * 3600_000).toISOString() } });
+		for (const id of ['PedidoConFotos0001', 'PedidoConFotos0002', 'PedidoConFotos0003', 'PedidoConFotos0004', 'PedidoConFotos0005', 'PedidoConFotos0006']) await apartar(id);
+		await apartar('PedidoConFotos0008', { haceH: 25 });
+		await apartar('PedidoConFotos0009', { casa: 'prueba-casa-en-venta' });
+		await espera('dueña pide un cambio con fotos de un pedido que el servidor no apartó', pedido('mixto1', 'PedidoConFotos0007', cambio('PedidoConFotos0007', [foto('PedidoConFotos0007', 1)])), false);
+		await espera('dueña pide un cambio con fotos de un apartado vencido', pedido('mixto1', 'PedidoConFotos0008', cambio('PedidoConFotos0008', [foto('PedidoConFotos0008', 1)])), false);
+		await espera('dueña pide un cambio con fotos de un apartado de otra casa', pedido('mixto1', 'PedidoConFotos0009', cambio('PedidoConFotos0009', [foto('PedidoConFotos0009', 1)])), false);
 		await espera('dueña pide un cambio con fotos de la carpeta del pedido', pedido('mixto1', 'PedidoConFotos0001', cambio('PedidoConFotos0001', [foto('PedidoConFotos0001', 1), foto('PedidoConFotos0001', 2)])), true);
 		await espera('dueña pide un cambio con la foto de otro pedido', pedido('mixto1', 'PedidoConFotos0002', cambio('PedidoConFotos0002', [foto('PedidoConFotos0001', 1)])), false);
 		await espera('dueña pide un cambio con una foto de otra casa', pedido('mixto1', 'PedidoConFotos0003', cambio('PedidoConFotos0003', [foto('PedidoConFotos0003', 1, 'prueba-casa-en-venta')])), false);
@@ -1115,7 +1123,7 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	const auth = (quien) => (quien === 'dueño' ? { Authorization: 'Bearer owner' } : quien ? { Authorization: `Bearer ${jwt(quien)}` } : {});
 	const subir = (quien, ruta, tipo = 'image/png') => fetch(`${B}?uploadType=media&name=${encodeURIComponent(ruta)}`, { method: 'POST', headers: { 'Content-Type': tipo, ...auth(quien) }, body: png }).then((r) => r.status);
 	const listar = (quien, prefijo) => fetch(`${B}?prefix=${encodeURIComponent(prefijo)}`, { headers: auth(quien) }).then((r) => r.status);
-	const borrar = (quien, ruta) => fetch(`${B}/${encodeURIComponent(ruta)}`, { method: 'DELETE', headers: auth(quien) }).then((r) => r.status);
+	const borrar = (quien, ruta) => fetch(`${B}/${encodeURIComponent(ruta)}`, { method: 'DELETE', headers: auth(quien) }).then((r) => (r.status === 204 ? 200 : r.status));
 	const bajar = (ruta) => fetch(`${B}/${encodeURIComponent(ruta)}?alt=media`).then((r) => r.status);
 	await poner('users/asesor9', { rol: 'asesor', activo: true, agentId: 'a9', nombre: 'Asesor' });
 	await espera('storage: el administrador sube una foto de una casa', subir('admin1', 'properties/casa1/foto1.png'), true);
@@ -1134,20 +1142,37 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('storage: un asesor lista las carpetas de los chats', listar('asesor9', 'chats/'), false);
 	await espera('storage: el dueño reemplaza una foto del sitio', subir('mixto1', 'properties/casa1/foto1.png'), false);
 	await espera('storage: el dueño sube una foto al sitio', subir('mixto1', 'site/portada.png'), false);
-	// Las fotos de un pedido del dueño (pedidosDueno/{casa}/{pedido}/1…6): solo su casa en venta o renta, sin reemplazar,
-	// y solo antes de enviar el pedido.
+	// Las fotos de un pedido del dueño (pedidosDueno/{casa}/{pedido}/1…6): solo en la carpeta que el servidor le apartó a ÉL
+	// para esa casa (pedidosDueno/{pedido}), vigente (un día) y sin enviar; sin reemplazar; la quita (libera el número)
+	// mientras no la envía. No se abren por su dirección: el equipo y el dueño de la casa.
+	const apartado = (id, { casa = 'mx-venta', uid = 'mixto1', haceH = 0 } = {}) => fetch(`${H}/pedidosDueno/${id}`, { method: 'PATCH', headers: cab('dueño'),
+		body: JSON.stringify({ fields: { propietarioId: val('m1'), uid: val(uid), casa: val(casa), cuando: { timestampValue: new Date(Date.now() - haceH * 3600_000).toISOString() } } }) });
+	const bajarCon = (quien, ruta) => fetch(`${B}/${encodeURIComponent(ruta)}?alt=media`, { headers: auth(quien) }).then((r) => r.status);
+	await apartado('PedidoDeFotos0001');
+	await apartado('PedidoVencido0001', { haceH: 25 });
+	await apartado('PedidoDeOtroUid01', { uid: 'otro-uid' });
 	await espera('storage: la dueña sube la foto de su pedido', subir('mixto1', 'pedidosDueno/mx-venta/PedidoDeFotos0001/1.png'), true);
 	await espera('storage: la dueña reemplaza la foto de su pedido', subir('mixto1', 'pedidosDueno/mx-venta/PedidoDeFotos0001/1.png'), false);
-	await espera('storage: la dueña borra la foto de su pedido', borrar('mixto1', 'pedidosDueno/mx-venta/PedidoDeFotos0001/1.png'), false);
+	await espera('storage: la dueña quita la foto antes de enviar (libera el número)', borrar('mixto1', 'pedidosDueno/mx-venta/PedidoDeFotos0001/1.png'), true);
+	await espera('storage: la dueña vuelve a subir en el número que quitó', subir('mixto1', 'pedidosDueno/mx-venta/PedidoDeFotos0001/1.png'), true);
 	await espera('storage: la dueña sube la 7.ª foto de un pedido', subir('mixto1', 'pedidosDueno/mx-venta/PedidoDeFotos0001/7.png'), false);
 	await espera('storage: la dueña sube una foto con otro nombre', subir('mixto1', 'pedidosDueno/mx-venta/PedidoDeFotos0001/portada.png'), false);
 	await espera('storage: la dueña sube un SVG a su pedido', subir('mixto1', 'pedidosDueno/mx-venta/PedidoDeFotos0001/2.svg', 'image/svg+xml'), false);
-	await espera('storage: la dueña sube a un pedido de una casa ajena', subir('mixto1', 'pedidosDueno/prueba-casa-en-venta/PedidoDeFotos0001/1.png'), false);
-	await espera('storage: la dueña sube a un pedido de su casa por noche (esa tiene «La casa»)', subir('mixto1', 'pedidosDueno/mx-noche/PedidoDeFotos0001/1.png'), false);
-	await espera('storage: un anónimo sube a un pedido', subir(null, 'pedidosDueno/mx-venta/PedidoDeFotos0002/1.png'), false);
+	await espera('storage: la dueña sube a un pedido que el servidor no apartó (id inventado)', subir('mixto1', 'pedidosDueno/mx-venta/PedidoInventado01/1.png'), false);
+	await espera('storage: la dueña sube con su apartado a la carpeta de otra casa', subir('mixto1', 'pedidosDueno/prueba-casa-en-venta/PedidoDeFotos0001/1.png'), false);
+	await espera('storage: la dueña sube a un apartado vencido', subir('mixto1', 'pedidosDueno/mx-venta/PedidoVencido0001/1.png'), false);
+	await espera('storage: la dueña sube al apartado de otra sesión', subir('mixto1', 'pedidosDueno/mx-venta/PedidoDeOtroUid01/1.png'), false);
+	await espera('storage: un anónimo sube a un pedido', subir(null, 'pedidosDueno/mx-venta/PedidoDeFotos0001/2.png'), false);
+	await espera('storage: un asesor sube a la carpeta de un pedido', subir('asesor9', 'pedidosDueno/mx-venta/PedidoDeFotos0001/3.png'), false);
+	await apartado('PedidoYaEnviado01');
+	await espera('storage: la dueña sube la foto de otro pedido (control)', subir('mixto1', 'pedidosDueno/mx-venta/PedidoYaEnviado01/1.png'), true);
 	await poner('comentariosPropietarios/PedidoYaEnviado01', { propietarioId: 'm1', agentId: 'a7', propiedadId: 'mx-venta', tipo: 'cambios', texto: 'x', origen: 'propietario' });
 	await espera('storage: la dueña agrega una foto a un pedido ya enviado', subir('mixto1', 'pedidosDueno/mx-venta/PedidoYaEnviado01/2.png'), false);
-	await espera('storage: el equipo abre la foto del pedido por su dirección', bajar('pedidosDueno/mx-venta/PedidoDeFotos0001/1.png'), true);
+	await espera('storage: la dueña borra la foto de un pedido ya enviado', borrar('mixto1', 'pedidosDueno/mx-venta/PedidoYaEnviado01/1.png'), false);
+	await espera('storage: un anónimo abre la foto del pedido por su dirección', bajar('pedidosDueno/mx-venta/PedidoDeFotos0001/1.png'), false);
+	await espera('storage: otro dueño abre la foto del pedido', bajarCon('socio1', 'pedidosDueno/mx-venta/PedidoDeFotos0001/1.png'), false);
+	await espera('storage: el equipo abre la foto del pedido', bajarCon('asesor9', 'pedidosDueno/mx-venta/PedidoDeFotos0001/1.png'), true);
+	await espera('storage: la dueña abre la foto de su pedido', bajarCon('mixto1', 'pedidosDueno/mx-venta/PedidoDeFotos0001/1.png'), true);
 	await espera('storage: el dueño borra una foto del sitio', borrar('mixto1', 'properties/casa1/foto1.png'), false);
 	await espera('storage: el dueño sube una foto nueva de su casa por noche', subir('socio1', 'properties/prueba-casa-playa-monterrico/nueva1.png'), true);
 	await espera('storage: el dueño reemplaza esa foto', subir('socio1', 'properties/prueba-casa-playa-monterrico/nueva1.png'), false);
@@ -1220,7 +1245,6 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('storage: el cliente sube a un chat que no existe', subir(null, 'chats/NoExisteEsteChatLargoYAlAzar12/x.png'), false);
 	// La foto del chat no la abre nadie por Storage (ni sus datos, que traen el token de descarga): la sirve /api/foto.
 	const datos = (quien, ruta) => fetch(`${B}/${encodeURIComponent(ruta)}`, { headers: auth(quien) }).then((r) => r.status);
-	const bajarCon = (quien, ruta) => fetch(`${B}/${encodeURIComponent(ruta)}?alt=media`, { headers: auth(quien) }).then((r) => r.status);
 	await subir('dueño', `chats/${T}/de-antes.png`);
 	for (const [quien, nombre] of [[null, 'sin sesión (con el enlace del chat)'], ['socio1', 'el socio de la casa'], ['admin1', 'el administrador'], ['asesor9', 'un asesor']]) {
 		for (const ruta of ['fotosChat/lead-fotos/1', `chats/${T}/de-antes.png`]) {

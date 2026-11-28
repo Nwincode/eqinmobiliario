@@ -718,9 +718,16 @@ service cloud.firestore {
     function fotoDelPedido(f, id) {
       return f is string && f.matches('pedidosDueno/' + request.resource.data.propiedadId + '/' + id + '/[1-6][.](webp|jpg|png)');
     }
+    // Con fotos, la carpeta la apartó el servidor para este dueño y esta casa (pedidosDueno/{id}, /api/pedido-dueno; sin
+    // regla: solo la escribe el servidor) y sigue vigente (un día, lo mismo que storage.rules y el barrido de cada hora).
     function fotosDelPedido(id) {
       let f = request.resource.data.fotos;
-      return f is list && f.size() >= 1 && f.size() <= 6
+      let apartado = /databases/$(database)/documents/pedidosDueno/$(id);
+      return exists(apartado)
+        && get(apartado).data.get('propietarioId', '') == request.resource.data.propietarioId
+        && get(apartado).data.get('casa', '') == request.resource.data.propiedadId
+        && get(apartado).data.cuando + duration.value(1, 'd') > request.time
+        && f is list && f.size() >= 1 && f.size() <= 6
         && fotoDelPedido(f[0], id)
         && (f.size() < 2 || fotoDelPedido(f[1], id)) && (f.size() < 3 || fotoDelPedido(f[2], id))
         && (f.size() < 4 || fotoDelPedido(f[3], id)) && (f.size() < 5 || fotoDelPedido(f[4], id))

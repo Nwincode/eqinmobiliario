@@ -18,6 +18,7 @@ import { avisarAvisos, pedidosDeDuenos, atenderPedido } from '../avisos.js';
 import { dinero, fechaCorta, whatsappUrl } from '../formato.js';
 import { estadoDeCierre, estaCerrada, cierreDePedido } from '../cierre-casa.js';
 import { claveListo } from '../avisos-reglas.js';
+import { ventanaCierre } from '../pedido-dueno.js';
 
 const ic = (clase) => h('span', { class: `${clase} me-1`, 'aria-hidden': 'true' });
 
@@ -127,24 +128,39 @@ function tarjeta(c, alCambiar) {
 			h('button', { type: 'button', class: 'btn btn-primary btn-toque', onclick: (e) => accion(e.currentTarget, listo(c), 'Listo: el cambio se queda.') }, ic('icon-check'), 'Listo')));
 }
 
-// «Aplicar» un cierre: en un solo lote, la casa pasa a vendida o rentada (con su fecha e historial de estado, la misma
-// pieza que el cambio de estado de Propiedades), su cierre queda en privado/cierre y el pedido, atendido. Si la casa ya
-// estaba cerrada, no se toca: solo se guarda el cierre (si no tenía) y se atiende. El estado, la moneda y la operación
-// salen de la casa, nunca del pedido.
-async function aplicarCierre(c) {
-	const refCasa = doc(db, 'properties', c.propiedadId);
-	const s = await getDoc(refCasa);
+// «Aplicar» un cierre: el equipo revisa la fecha y el precio final que dio el dueño (y el cierre que la casa ya tuviera) en
+// la misma ventana del dueño (pedido-dueno.js ventanaCierre), los corrige si hace falta y, en un solo lote, la casa pasa
+// a vendida o rentada (con su fecha e historial de estado, la misma pieza que el cambio de estado de Propiedades), su
+// cierre queda en privado/cierre con lo que confirmó el equipo y el pedido, atendido. Si la casa ya estaba cerrada, el
+// estado no se toca. Estado, moneda y operación salen de la casa, nunca del pedido. Una lectura que falla se dice (no se
+// toma por «no tiene cierre»).
+async function abrirAplicar(c, alCambiar) {
+	const s = await getDoc(doc(db, 'properties', c.propiedadId));
 	if (!s.exists()) throw new Error('La casa ya no existe.');
 	const casa = { id: s.id, ...s.data() };
 	if (casa.operacion === 'vacacional') throw new Error('Esta casa es por noche: no se vende ni se renta desde aquí.');
 	const refCierre = doc(db, 'properties', casa.id, 'privado', 'cierre');
+	const previo = (await getDoc(refCierre)).data() || null;
+	const renta = casa.operacion === 'renta';
+	const nota = previo
+		? `Esta casa ya tiene su cierre: ${fechaCorta(previo.fechaCierre)}${Number(previo.precioFinal) > 0 ? ` · ${dinero(Number(previo.precioFinal), previo.moneda || casa.moneda)}` : ''}. Al aplicar queda el de aquí.`
+		: `La casa pasa a ${renta ? 'rentada' : 'vendida'} y sale de la página. Reportes usa esta fecha y este precio.`;
+	ventanaCierre({ titulo: `Aplicar: ${renta ? 'ya se rentó' : 'ya se vendió'}`, casa, fecha: c.fechaCierre, precio: Number(c.precioFinal) > 0 ? c.precioFinal : '', nota, boton: ['icon-check', 'Aplicar'],
+		alEnviar: async (valores) => {
+			await aplicarCierre(c, casa, valores);
+			toast(`Listo: «${casa.titulo || 'la casa'}» quedó ${renta ? 'rentada' : 'vendida'}.`);
+			avisarAvisos();
+			alCambiar();
+			return true;
+		} });
+}
+export async function aplicarCierre(c, casa, valores) {
 	const yaCerrada = estaCerrada(casa);
-	const tenia = yaCerrada && (await getDoc(refCierre).catch(() => null))?.exists();
 	const lote = writeBatch(db);
-	if (!tenia) lote.set(refCierre, { ...cierreDePedido(c, casa), por: session.user.uid, updatedAt: serverTimestamp() });
+	lote.set(doc(db, 'properties', casa.id, 'privado', 'cierre'), { ...cierreDePedido({ ...c, ...valores }, casa), por: session.user.uid, updatedAt: serverTimestamp() });
 	if (!yaCerrada) {
 		const { cambioDeEstado } = await import('./properties.js');
-		lote.update(refCasa, { ...cambioDeEstado(estadoDeCierre(casa.operacion)), updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+		lote.update(doc(db, 'properties', casa.id), { ...cambioDeEstado(estadoDeCierre(casa.operacion)), updatedAt: serverTimestamp(), updatedBy: session.user.uid });
 	}
 	lote.set(doc(db, 'avisosAtendidos', claveListo({ tipo: 'cambios', objeto: c.id })), { tipo: 'cambios', objeto: c.id, agentId: c.agentId || '', por: session.user.uid, fecha: serverTimestamp() });
 	await lote.commit();
@@ -166,6 +182,7 @@ export function tarjetaPedido(c, { casa, dueno, fotos }, alCambiar) {
 	const accion = accionDe(alCambiar);
 	const cierre = c.tipo === 'cierre';
 	const renta = casa?.operacion === 'renta';
+	const puedeAplicar = session.isAdmin || Boolean(casa?.agentId && casa.agentId === session.agentId);
 	const nombre = dueno?.nombre || 'El dueño';
 	const titulo = casa?.titulo || 'su casa';
 	const tachado = (a) => h('span', { class: 'text-muted text-decoration-line-through' }, a);
@@ -191,8 +208,10 @@ export function tarjetaPedido(c, { casa, dueno, fotos }, alCambiar) {
 			dueno?.telefono ? iconoBtn('icon-whatsapp', `Escribirle a ${nombre}`, { href: whatsappUrl(dueno.telefono, `Hola ${nombre.split(' ')[0]}, te escribo por «${titulo}».`), target: '_blank', rel: 'noopener' }) : null,
 			iconoBtn('icon-times', 'Descartar', { class: 'btn-toque btn-icono btn btn-sm btn-outline-danger', onclick: (e) => accion(e.currentTarget, descartar, 'Descartado.') }),
 			h('span', { class: 'flex-grow-1' }),
-			h('button', { type: 'button', class: 'btn btn-primary btn-toque', onclick: (e) => accion(e.currentTarget, cierre ? () => aplicarCierre(c) : () => atenderPedido(c),
-				cierre ? `Listo: «${titulo}» quedó ${renta ? 'rentada' : 'vendida'}.` : 'Listo: el pedido quedó atendido.') }, ic('icon-check'), cierre ? 'Aplicar' : 'Listo')));
+			// «Aplicar» cambia la casa: solo quien puede (el administrador o el asesor de la casa); a los demás se les dice quién.
+			cierre && !puedeAplicar ? h('span', { class: 'small text-muted text-end' }, 'Lo aplica el administrador: la casa la lleva otro asesor.')
+				: cierre ? h('button', { type: 'button', class: 'btn btn-primary btn-toque', onclick: (e) => { const b = e.currentTarget; b.disabled = true; abrirAplicar(c, alCambiar).catch(showError).finally(() => { b.disabled = false; }); } }, ic('icon-check'), 'Aplicar')
+					: h('button', { type: 'button', class: 'btn btn-primary btn-toque', onclick: (e) => accion(e.currentTarget, () => atenderPedido(c), 'Listo: el pedido quedó atendido.') }, ic('icon-check'), 'Listo')));
 }
 
 // Los pedidos con su casa, su dueño y sus fotos (lo que el panel de esta persona puede leer).

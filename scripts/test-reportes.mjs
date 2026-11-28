@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { sumarPorMoneda, dineroPorMoneda, esPorcentaje, idClientePorContacto, telefonoWa } from '../admin/js/formato.js';
 import { REGLAS_POR_DEFECTO, comisionDe, montoComision } from '../admin/js/acuerdo.js';
-import { conPrecioFinal, cierresSinCliente, cierreDePedido, estadoDeCierre } from '../admin/js/cierre-casa.js';
+import { conPrecioFinal, cierresSinCliente, cierreDePedido, estadoDeCierre, faltaEnCierre, cierrePorGuardar } from '../admin/js/cierre-casa.js';
 
 let ok = 0;
 const t = (nombre, fn) => { fn(); ok++; console.log('✓', nombre); };
@@ -107,6 +107,31 @@ t('Reportes usa el precio final y las casas cerradas; el precio final nunca va a
 	assert.doesNotMatch(cd, /lote\.update\(refCasa, \{[^}]*precioFinal/);
 	// El build y los feeds no leen privado/cierre ni conocen el precio final.
 	for (const f of ['../../scripts/build.mjs', '../../scripts/lib/templates.mjs', '../../scripts/lib/util.mjs']) assert.doesNotMatch(fuente(f), /precioFinal|privado\/cierre|'cierre'\)/, f);
+});
+t('La ficha de la casa: el cierre se revisa, se guarda en privado/cierre y se borra si la casa vuelve a ofrecerse', () => {
+	const H = '2026-11-28';
+	assert.equal(faltaEnCierre({}, H), '');
+	assert.equal(faltaEnCierre({ fechaCierre: '', precioFinal: 270000 }, H), 'Cierre: escribe la fecha.');
+	assert.match(faltaEnCierre({ fechaCierre: '2026-12-05' }, H), /después de hoy/);
+	assert.match(faltaEnCierre({ fechaCierre: '2026-11-26', precioFinal: -1 }, H), /mayor que cero/);
+	assert.equal(faltaEnCierre({ fechaCierre: '2026-11-26', precioFinal: 270000 }, H), '');
+	const vendida = { estado: 'vendida', operacion: 'venta', moneda: 'USD' };
+	assert.deepEqual(cierrePorGuardar({ fechaCierre: '2026-11-26', precioFinal: '270000' }, vendida, { pedidoId: 'p9' }),
+		{ fechaCierre: '2026-11-26', precioFinal: 270000, moneda: 'USD', operacion: 'venta', pedidoId: 'p9' });
+	assert.equal(cierrePorGuardar({ fechaCierre: '2026-11-26' }, { ...vendida, estado: 'disponible' }, { fechaCierre: '2026-11-26' }), 'borrar');
+	assert.equal(cierrePorGuardar({}, { ...vendida, estado: 'disponible' }, null), null);
+	assert.equal(cierrePorGuardar({ fechaCierre: '' }, vendida, { fechaCierre: '2026-11-26' }), 'borrar');
+	const f = fuente('views/properties.js');
+	// El cierre nunca va al documento público de la casa.
+	assert.match(f, /const cierreForm = d\.cierre \|\| \{\};\n\t\tdelete d\.cierre;/);
+	assert.match(f, /const \{ socio = \{\}, acuerdo, cierre, \.\.\.datos \} = clonar\(f\);/);
+	assert.match(f, /cierreGuardado = await guardarCierre\(ref\.id, /);
+	// Cambiar el estado desde la lista (una o varias) borra el cierre de la que vuelve a ofrecerse, en el mismo lote.
+	assert.match(f, /if \(cambios\.estado && !estaCerrada\(cambios\)\) lote\.delete\(doc\(db, 'properties', id, 'privado', 'cierre'\)\);/);
+	assert.equal((f.match(/await loteDeEstado\(p\.id, cambios\)\.commit\(\);/g) || []).length, 2);
+	// El socio no ve ni escribe el cierre (su ficha de casa nueva).
+	assert.match(f, /startsWith\('cierre\.'\)/);
+	assert.match(f, /let cierreGuardado = isNew \|\| paraSocio \? null :/);
 });
 
 console.log(`\n${ok} pruebas de reportes pasan.`);

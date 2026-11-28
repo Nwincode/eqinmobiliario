@@ -22,6 +22,7 @@ import { miles, dinero, whatsappUrl, slugLibre } from '../formato.js';
 import { filaCasa, publicUrl } from '../ficha-casa.js';
 import { sinTildes, REGIMENES, MODOS } from '../cotizacion.js';
 import { acuerdoDe, acuerdoHeredado, camposDelAcuerdo, CAMPOS_ACUERDO } from '../acuerdo.js';
+import { estaCerrada, faltaEnCierre, cierrePorGuardar } from '../cierre-casa.js';
 import { loadPropietarios } from '../crm.js';
 import { asignarDueno, confirmarCambioDeDueno, revisarSinDueno } from '../enlace-dueno.js';
 import { deLaCasa, porVenir, avisoPorVenir, refContacto, alDiaEnLaWeb } from '../reservas.js';
@@ -363,6 +364,26 @@ export function cambioDeEstado(estado) {
 	return { estado, estadoFecha: serverTimestamp(), historialEstado: arrayUnion(entradaHistorial(estado)) };
 }
 
+// El cierre de una casa (privado/cierre) según la ficha: se escribe si cambió y se borra si la casa vuelve a ofrecerse.
+// Devuelve lo que queda guardado. (cierre-casa.js cierrePorGuardar decide.)
+async function guardarCierre(id, casa, form, previo) {
+	const que = cierrePorGuardar(form, casa, previo);
+	const refCierre = doc(db, 'properties', id, 'privado', 'cierre');
+	if (que === 'borrar') { await deleteDoc(refCierre); return null; }
+	if (!que) return previo;
+	const igual = previo && ['fechaCierre', 'precioFinal', 'moneda', 'operacion'].every((k) => (previo[k] ?? '') === (que[k] ?? ''));
+	if (!igual) await setDoc(refCierre, { ...que, por: session.user.uid, updatedAt: serverTimestamp() });
+	return igual ? previo : que;
+}
+// El cambio de estado desde la lista (una o varias), en un lote: una casa que vuelve a ofrecerse pierde su cierre
+// (privado/cierre; borrar uno que no existe no falla).
+function loteDeEstado(id, cambios) {
+	const lote = writeBatch(db);
+	lote.update(doc(db, 'properties', id), { ...cambios, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+	if (cambios.estado && !estaCerrada(cambios)) lote.delete(doc(db, 'properties', id, 'privado', 'cierre'));
+	return lote;
+}
+
 // Nombre corto del estado para la etiqueta («retirada», no «retirada del mercado»).
 const corto = (e) => e.label.split(/ [/d]/)[0].toLowerCase();
 
@@ -471,7 +492,7 @@ export async function render(container, [id]) {
 	// Guarda al instante un cambio rápido de la lista y vuelve a dibujar.
 	const guardarRapido = async (p, cambios, local, desc, aviso) => {
 		try {
-			await updateDoc(doc(db, 'properties', p.id), { ...cambios, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+			await loteDeEstado(p.id, cambios).commit();
 			Object.assign(p, local, { updatedAt: { seconds: Date.now() / 1000 } });
 			refrescarPortalesDe([p.id]);
 			await markPending(desc);
@@ -609,7 +630,7 @@ export async function render(container, [id]) {
 		draw();
 	};
 	const guardarMasa = (cambios, local) => async (p) => {
-		await updateDoc(doc(db, 'properties', p.id), { ...cambios, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+		await loteDeEstado(p.id, cambios).commit();
 		Object.assign(p, local, { updatedAt: { seconds: Date.now() / 1000 } });
 	};
 	selMasaEstado.addEventListener('change', () => {
@@ -917,7 +938,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false, casaId = '', paraSoc
 // admin/js/casa-nueva.js al publicar (la misma del servidor), junto al campo.
 const SOLO_EQUIPO = new Set(['slug', 'codigo', 'condominioSiglas', 'estado', 'propietarioId', 'orden', 'publicado', 'destacada', 'vip', 'video',
 	'socio.codigoSocio', 'socio.margen', 'vacacional.bloqueos', ...V.CALENDARIOS.map((c) => `socio.${c.campo}`)]);
-const SECCIONES_EQUIPO = ['Acuerdo con el dueño', 'Landing page VIP', 'Versión en inglés (mercado de EE. UU.)', 'SEO (opcional)'];
+const SECCIONES_EQUIPO = ['Acuerdo con el dueño', 'Cierre', 'Landing page VIP', 'Versión en inglés (mercado de EE. UU.)', 'SEO (opcional)'];
 const CUSTOM_EQUIPO = ['Ganancia y precio al público', 'Así se verá en Google', 'Calendario de Equipo Inmobiliario (pégalo en Airbnb, Booking y VRBO)'];
 const OBLIGATORIOS_SOCIO = new Set(['zona', 'ciudad']);
 const PARA_EL_SOCIO = {
@@ -937,7 +958,7 @@ function paraElSocio(campos, { colaborador = false } = {}) {
 	return campos.map((f) => {
 		if (f.type === 'section') enSeccionEquipo = SECCIONES_EQUIPO.includes(f.label);
 		const oculto = enSeccionEquipo || SOLO_EQUIPO.has(f.name) || (f.type === 'custom' && CUSTOM_EQUIPO.includes(f.label))
-			|| String(f.name || '').startsWith('acuerdo.') || String(f.name || '').startsWith('en.') || String(f.name || '').startsWith('vipLanding.');
+			|| String(f.name || '').startsWith('acuerdo.') || String(f.name || '').startsWith('cierre.') || String(f.name || '').startsWith('en.') || String(f.name || '').startsWith('vipLanding.');
 		if (oculto) return { ...f, when: () => false };
 		if (f.type === 'section' && f.label === 'Fotos') return { ...f, help: 'Al menos 5 (hasta 40). La primera es la portada.' };
 		const g = { ...f, ...(PARA_EL_SOCIO[f.name] || {}) };
@@ -951,6 +972,7 @@ function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = ''
 	// La landing VIP no tiene caja de reserva: una casa por noche siempre usa su ficha normal.
 	const vip = (d) => Boolean(d.vip) && !esVacacional(d);
 	const conDueno = (d) => Boolean(d.propietarioId);
+	const conCierre = (d) => !esVacacional(d) && estaCerrada(d);
 	// Un terreno no tiene cuartos, baños, parqueos, construcción, niveles ni año: no se le preguntan.
 	const construido = (d) => d.tipo !== 'terreno';
 	// Una casa por noche no lleva precio ni VIP: moneda, orden, visible y destacada caben en una sola fila.
@@ -1068,6 +1090,11 @@ function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = ''
 		{ name: 'acuerdo.impuestoPaga', label: 'Quién paga el impuesto', type: 'select', cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', options: [['', 'Por definir'], ['comprador', 'Comprador'], ['vendedor', 'Vendedor'], ['mitad', 'Mitad y mitad']] },
 		{ name: 'acuerdo.notasImpuestos', label: 'Notas de impuestos', cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', placeholder: 'IUSI al día, ISR, gastos de escritura…' },
 		{ name: 'acuerdo.contrato', label: 'Enlace al contrato (Drive, Dropbox…)', type: 'url', cols: 12, when: conDueno, placeholder: 'https://…' },
+		// Cierre de una casa vendida o rentada: fecha y precio final, privados (privado/cierre, admin/js/cierre-casa.js; nunca
+		// en la casa, que es pública). Lo usa Reportes; también lo pone «Aplicar» del aviso del dueño (Cambios de los dueños).
+		{ type: 'section', label: 'Cierre', when: conCierre, help: 'Privado: no sale en la página. Reportes usa esta fecha y este precio (en renta, la renta al mes).' },
+		{ name: 'cierre.fechaCierre', label: 'Fecha del cierre', type: 'date', cols: 4, when: conCierre },
+		{ name: 'cierre.precioFinal', label: 'Precio final', type: 'number', min: 0, step: 0.01, cols: 4, when: conCierre, help: 'Vacío = el precio publicado.' },
 
 		{ type: 'section', label: 'Landing page VIP', help: 'Se publica en /vip/… y queda completa aunque no escribas nada aquí: usa el título, la primera foto, los datos, la descripción y las amenidades de la casa.', when: vip },
 		{ name: 'vipLanding.titular', label: 'Titular', cols: 6, when: vip, placeholder: 'Vacío = el título de la casa' },
@@ -1206,13 +1233,15 @@ async function renderEditor(container, id, emb = null) {
 	let slugTouched = Boolean(data.slug);
 	// El socio: la casa es suya y, en venta o renta, la atiende su asesor (el colaborador puede elegir otro).
 	if (paraSocio) Object.assign(data, { propietarioId: session.profile.propietarioId || '', agentId: session.dueno?.agentId || '' });
-	const datosForm = { ...data, acuerdo: acuerdoInicial, socio: { margen: V.MARGEN, ...(socioGuardado || {}) }, vacacional: { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(data.vacacional || {}) } };
+	// El cierre de la casa (privado/cierre): solo el equipo lo lee; una lectura que falla no se toma por «no tiene».
+	let cierreGuardado = isNew || paraSocio ? null : (await getDoc(doc(db, 'properties', ref.id, 'privado', 'cierre'))).data() || null;
+	const datosForm = { ...data, cierre: { fechaCierre: cierreGuardado?.fechaCierre || '', precioFinal: cierreGuardado?.precioFinal ?? '' }, acuerdo: acuerdoInicial, socio: { margen: V.MARGEN, ...(socioGuardado || {}) }, vacacional: { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(data.vacacional || {}) } };
 	mascotasUnaVez(datosForm);
 	const form = renderForm(schema(agentOpts, isNew, socioOpts, ajeno, isNew ? '' : ref.id, paraSocio ? { colaborador: session.dueno?.tipo === 'colaborador' } : null), datosForm, { folder: `properties/${ref.id}` });
 	// La ficha como estaba al abrirla (o al último «Guardar»): con eso se sabe qué cambió quien la edita y solo eso se
 	// guarda (guardarCambios). De una casa que no era por noche no hay nada por noche guardado: todo eso es nuevo.
 	const comoQuedo = (f) => {
-		const { socio = {}, acuerdo, ...datos } = clonar(f);
+		const { socio = {}, acuerdo, cierre, ...datos } = clonar(f);
 		if (!esVacacional(f)) delete datos.vacacional;
 		return { datos, socio: esVacacional(f) ? socio : {} };
 	};
@@ -1345,9 +1374,13 @@ async function renderEditor(container, id, emb = null) {
 		// Lo del socio nunca va al documento público (ni a la traducción).
 		const socio = d.socio || {};
 		delete d.socio;
-		// El acuerdo con el dueño tampoco (privado/acuerdo).
+		// El acuerdo con el dueño tampoco (privado/acuerdo), ni el cierre (privado/cierre).
 		const delFormulario = d.acuerdo || {};
 		delete d.acuerdo;
+		const cierreForm = d.cierre || {};
+		delete d.cierre;
+		const cierreError = !esVacacional(d) && estaCerrada(d) ? faltaEnCierre(cierreForm, hoyISO()) : '';
+		if (cierreError) return toast(cierreError, 'warning');
 		let llegada = null;
 		// El dueño de la casa ya está en Propietarios: su nombre y teléfono salen de ahí, no se vuelven a escribir.
 		if (esVacacional(d)) {
@@ -1448,6 +1481,8 @@ async function renderEditor(container, id, emb = null) {
 			if (acuerdo === 'borrar') await deleteDoc(acuerdoRef);
 			else if (acuerdo) await setDoc(acuerdoRef, { ...acuerdo, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
 			if (acuerdo) acuerdoPropio = acuerdo === 'borrar' ? null : acuerdo;
+			// El cierre: con la casa vendida o rentada, lo de la ficha; si vuelve a ofrecerse, se borra.
+			cierreGuardado = await guardarCierre(ref.id, { ...guardada, operacion: d.operacion }, cierreForm, cierreGuardado);
 			acuerdoTocado = false;
 			eraVacacional = Boolean(llegada);
 			if (!isNew) refrescarPortalesDe([ref.id]);

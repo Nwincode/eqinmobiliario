@@ -26,6 +26,28 @@ export function faltaFechaCierre(fecha, hoyIso) {
 	return '';
 }
 
+// La ficha de la casa (bloque «Cierre», admin/js/views/properties.js): lo que falta o está mal ('' si va bien). Vacío
+// todo, no hay cierre que guardar; con precio, la fecha es obligatoria.
+export function faltaEnCierre(c = {}, hoyIso) {
+	const fecha = String(c?.fechaCierre || '');
+	const hayPrecio = !(c?.precioFinal === '' || c?.precioFinal == null);
+	if (!fecha && !hayPrecio) return '';
+	if (!fecha) return 'Cierre: escribe la fecha.';
+	const f = faltaFechaCierre(fecha, hoyIso);
+	if (f) return `Cierre: ${f.charAt(0).toLowerCase()}${f.slice(1)}`;
+	if (hayPrecio && precioFinalDe(c.precioFinal) === null) return 'Cierre: el precio final va solo con el número, mayor que cero.';
+	return '';
+}
+// Qué se guarda en privado/cierre al guardar la ficha: el cierre, 'borrar' (la casa vuelve a ofrecerse, o se vaciaron
+// los campos) o null (nada que hacer). Moneda y operación, de la casa; el pedido del dueño que lo trajo se conserva.
+export function cierrePorGuardar(form, casa, previo) {
+	const fecha = String(form?.fechaCierre || '');
+	if (casa?.operacion === 'vacacional' || !estaCerrada(casa) || !fecha) return previo ? 'borrar' : null;
+	const precio = precioFinalDe(form?.precioFinal);
+	return { fechaCierre: fecha, ...(precio ? { precioFinal: precio } : {}), moneda: casa.moneda || 'USD', operacion: casa.operacion === 'renta' ? 'renta' : 'venta',
+		...(previo?.pedidoId ? { pedidoId: previo.pedidoId } : {}) };
+}
+
 // Lo que se guarda al aplicar el pedido del dueño: la fecha y el precio que él dio, en la moneda de la CASA (nunca la
 // del pedido) y con la operación de la casa.
 export function cierreDePedido(pedido, casa) {

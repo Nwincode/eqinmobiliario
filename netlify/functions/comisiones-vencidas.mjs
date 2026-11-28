@@ -1,7 +1,8 @@
 // Cada hora: si cambió qué socios deben una comisión hace más de 72 h, vuelve a publicar el sitio,
 // para que sus casas salgan de los listados o regresen solas cuando el administrador la marca pagada.
 // También recalcula los permisos de los socios (a los 7 días de atraso se apagan; al pagar vuelven): netlify/lib/permisos.mjs,
-// y barre las carpetas de fotos vencidas de las casas nuevas que no se publicaron (netlify/lib/casas-nuevas.mjs).
+// y barre las carpetas de fotos vencidas de las casas nuevas que no se publicaron (netlify/lib/casas-nuevas.mjs) y de los
+// pedidos del dueño (netlify/lib/pedidos-dueno.mjs).
 // Mientras la última publicación esté marcada como fallida (deploy-failed.mjs) no vuelve a publicar: fallaría igual cada
 // hora. Pasadas 12 horas del fallo lo intenta otra vez (así, como mucho dos veces al día), para que la mora no quede
 // sin aplicarse si nadie abre el panel. El equipo ya recibió el correo del fallo; al publicar bien, esto sigue solo.
@@ -12,6 +13,7 @@ import { sociosEnMora, pausados } from '../lib/comisiones.mjs';
 import { escrituraConfigurada } from '../lib/firestore-escritura.mjs';
 import { recalcularPermisos } from '../lib/permisos.mjs';
 import { barrerCasasNuevas } from '../lib/casas-nuevas.mjs';
+import { barrerPedidosDueno } from '../lib/pedidos-dueno.mjs';
 import { conReloj } from '../lib/estado.mjs';
 
 const REINTENTO_TRAS_FALLO = 12 * 3600_000;
@@ -23,6 +25,8 @@ export default conReloj('comisiones-vencidas', async () => {
 		try { await recalcularPermisos(); } catch (e) { console.error('comisiones-vencidas (permisos):', e.message); }
 		// Las carpetas de fotos de una casa nueva del socio que vencieron sin casa, con sus fotos.
 		try { await barrerCasasNuevas(); } catch (e) { console.error('comisiones-vencidas (casas nuevas):', e.message); }
+		// Las carpetas de fotos de los pedidos del dueño que vencieron: sin pedido, todo; con pedido, lo que no lleva.
+		try { await barrerPedidosDueno(); } catch (e) { console.error('comisiones-vencidas (pedidos del dueño):', e.message); }
 	}
 	try {
 		const publicado = await fetch(`${SITE_URL}/pausados.txt`);

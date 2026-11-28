@@ -90,12 +90,15 @@ export async function borrarFotosSinUso(paths, excluirId = '') {
 	await Promise.all(lista.filter((r) => !usadas.has(r)).map(deleteImage));
 }
 
-export async function deleteImage(path) {
+// lanzar: el error sube a quien llama (p. ej. la ✕ de un pedido, que solo quita la foto si se borró).
+export async function deleteImage(path, { lanzar = false } = {}) {
 	if (!storage || !path) return;
 	try {
 		await deleteObject(ref(storage, path));
 	} catch (err) {
-		if (err.code !== 'storage/object-not-found') console.warn('No se pudo borrar la imagen', path, err);
+		if (err.code === 'storage/object-not-found') return;
+		if (lanzar) throw err;
+		console.warn('No se pudo borrar la imagen', path, err);
 	}
 }
 
@@ -435,7 +438,12 @@ export function renderForm(schema, data, options = {}) {
 					const arr = get() || [];
 					if (field.simple) {
 						grid.replaceChildren(...arr.map((img, i) => h('div', { class: 'images-grid-item' }, h('img', { src: img.url, alt: '' }),
-							h('button', { type: 'button', class: 'images-quitar', 'aria-label': `Quitar la foto ${i + 1}`, title: 'Quitar foto', onclick: () => { arr.splice(i, 1); set(arr); draw(); } },
+							h('button', { type: 'button', class: 'images-quitar', 'aria-label': `Quitar la foto ${i + 1}`, title: 'Quitar foto', onclick: async (e) => {
+								// borrarAlQuitar: el archivo se borra en el momento (así su número queda libre para la siguiente).
+								e.currentTarget.disabled = true;
+								try { if (field.borrarAlQuitar) await deleteImage(img.path, { lanzar: true }); } catch (err) { e.currentTarget.disabled = false; return showError(err); }
+								arr.splice(arr.indexOf(img), 1); set(arr); draw();
+							} },
 								h('span', { class: 'icon-close', 'aria-hidden': 'true' })))),
 						field.max && arr.length >= field.max ? null : h('button', { type: 'button', class: 'images-grid-item images-agregar', 'aria-label': 'Agregar fotos', title: 'Agregar fotos', onclick: () => fi.click() },
 							h('span', { class: 'icon-plus', 'aria-hidden': 'true' }), h('span', { class: 'icon-camera', 'aria-hidden': 'true' })));
