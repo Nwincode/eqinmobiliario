@@ -121,7 +121,7 @@ export async function cargarSolicitudes({ mensajes = 'todos', recargar = async (
 		id: c.leadId, nombre: c.nombre, propertyId: c.propertyId, propertyTitulo: c.propertyTitulo, propietarioId: c.propietarioId, createdAt: c.createdAt,
 		// El subtotal cotizado viaja en el chat; uno de antes no lo trae y se saca del total que vio el cliente.
 		reserva: { codigo: c.codigo, llegada: c.llegada, salida: c.salida, noches: c.noches, huespedes: c.huespedes, total: c.total, moneda: c.moneda,
-			subtotal: subtotalCotizado(c) },
+			subtotal: subtotalCotizado(c), ...(c.minimoAlPedir === true ? { minimoAlPedir: true } : {}) },
 		solicitud: c.estado ? { estado: c.estado === 'pagada' ? 'confirmada' : c.estado } : undefined }; };
 	const leads = (admin ? snap.docs.map((d) => ({ id: d.id, ...d.data() })) : chatsSnap.docs.map(delChat)).filter((l) => l.reserva?.llegada);
 	// Lo que se debe a EQ, una sola lista para el aviso del socio, el número «Por cobrar» y el filtro «cobrar»: sale de las

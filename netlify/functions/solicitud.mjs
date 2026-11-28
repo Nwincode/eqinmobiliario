@@ -198,6 +198,8 @@ export async function guardarSolicitud(tx, leadId, token, datos, { ip = 'anon', 
 	tx.crear(`chats/${token}`, { codigo: reserva.codigo, leadId, propertyId: lead.propertyId, propertyTitulo: titulo, propertyTituloEn: String(casa.en?.titulo || '').slice(0, 200), propietarioId,
 		nombre: nombreDelChat(lead.nombre, lead.idioma), llegada: reserva.llegada, salida: reserva.salida, noches: reserva.noches, huespedes: reserva.huespedes,
 		total: reserva.total, subtotal: reserva.subtotal, moneda: reserva.moneda, idioma: lead.idioma, ...chat,
+		// El socio arma su solicitud desde el chat (no lee leads/): ahí también va que cumplió el mínimo al pedirla.
+		...(reserva.minimoAlPedir ? { minimoAlPedir: true } : {}),
 		// El aviso de la solicitud nueva queda pendiente desde que nace: si la respuesta no le llega a la página (y no llama
 		// /api/aviso-chat), lo manda el control de cada hora (aviso-chat-envio.mjs, «nueva»).
 		avisoPendiente: 'nueva',

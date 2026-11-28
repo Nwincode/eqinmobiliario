@@ -323,6 +323,7 @@ await t('mora con el comprobante del cliente: la pausa del servidor y el nivel d
 		casaNoche('cv4');
 		const lead = await pedir('cv4', '2027-03-01', '2027-03-03');
 		assert.equal(leer(`leads/${lead}`).reserva.minimoAlPedir, true, 'el servidor anota que cumplió el mínimo al pedirla');
+		assert.equal(leer(`chats/${leer(`chatsPorSolicitud/${lead}`).token}`).minimoAlPedir, true, 'también en el chat: de ahí arma el socio su solicitud');
 		const vieja = await pedir('cv4', '2027-04-01', '2027-04-03');
 		const { minimoAlPedir, ...sinMarca } = leer(`leads/${vieja}`).reserva;
 		poner(`leads/${vieja}`, { ...leer(`leads/${vieja}`), reserva: sinMarca });
