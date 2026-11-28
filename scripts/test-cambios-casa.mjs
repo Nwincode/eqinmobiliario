@@ -1,6 +1,6 @@
 // Pruebas de admin/js/cambios-casa.js: guardar solo lo que cambió la ficha y el historial de estado y de precio.
 import assert from 'node:assert/strict';
-import { cambiosEntre, aplicarCambios, historialCon, huespedesMaxDe, guardarSobre } from '../admin/js/cambios-casa.js';
+import { cambiosEntre, aplicarCambios, historialCon, huespedesMaxDe, guardarSobre, historialSinNombres } from '../admin/js/cambios-casa.js';
 
 let ok = 0;
 const t = (nombre, fn) => { fn(); ok++; console.log('✓', nombre); };
@@ -52,7 +52,8 @@ t('historial: cambia el estado → una entrada nueva sobre lo guardado AHORA (no
 	const h = historialCon(ahora, { estado: 'vendida' }, quien);
 	assert.equal(h.cambioEstado, true);
 	assert.equal(h.historialEstado.length, 4);
-	assert.deepEqual(h.historialEstado.at(-1), { estado: 'vendida', fecha: 'AHORA', por: 'Ana', porUid: 'u1' });
+	// Sin el nombre (la casa publicada la lee cualquiera), aunque se lo pasen: solo el uid.
+	assert.deepEqual(h.historialEstado.at(-1), { estado: 'vendida', fecha: 'AHORA', porUid: 'u1' });
 	assert.equal(ahora.historialEstado.length, 3, 'no cambia lo de antes');
 	assert.equal(historialCon(ahora, { estado: 'disponible' }, quien).cambioEstado, false);
 });
@@ -66,6 +67,15 @@ t('historial de precio: solo si cambia precio o moneda; el primero de una casa v
 	assert.equal(historialCon(conHist, { precio: 90000, moneda: 'USD' }, quien).historialPrecio.length, 1);
 	assert.equal(historialCon(conHist, { precio: 90000, moneda: 'GTQ' }, quien).historialPrecio.length, 2);
 	assert.equal(conHist.historialPrecio.length, 1, 'no cambia lo de antes');
+});
+
+t('historial sin nombres: quita `por` de cada entrada (lo demás igual); sin ninguno, null', () => {
+	const f = new Date(0);
+	assert.deepEqual(historialSinNombres([{ estado: 'disponible', fecha: f, por: 'Ana', porUid: 'u1' }, { estado: 'vendida', fecha: 'X', porUid: 'u2' }]),
+		[{ estado: 'disponible', fecha: f, porUid: 'u1' }, { estado: 'vendida', fecha: 'X', porUid: 'u2' }]);
+	assert.equal(historialSinNombres([{ estado: 'disponible', porUid: 'u1' }]), null);
+	assert.equal(historialSinNombres(undefined), null);
+	assert.equal(historialSinNombres([null, { estado: 'x', por: '' }]).length, 2);
 });
 
 t('una propiedad que nace: su estado y su primer precio', () => {

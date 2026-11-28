@@ -78,7 +78,7 @@ async function guardarDelDueno(tx, socio, id, pedido) {
 			const vienen = (await tx.consultar('reservas', 'propertyId', id)).some((x) => x.estado !== 'cancelada' && String(x.salida || '') > hoy);
 			if (vienen) falla(409, 'Tienes huéspedes por venir en esta casa: no se puede pausar. Bloquea los días en el calendario.');
 		}
-		const quien = { fecha: new Date().toISOString(), por: socio.nombre || 'Dueño', porUid: socio.uid };
+		const quien = { fecha: new Date().toISOString(), porUid: socio.uid };
 		extra.historialEstado = historialCon(casa, { ...casa, estado: r.escribir.casa.estado }, quien).historialEstado;
 	}
 	escribirEn(tx, id, docs, r.escribir, extra);
@@ -103,7 +103,7 @@ async function deshacer(tx, admin, avisoId, campos) {
 	const actual = valoresDueno({ casa: docs.casa, socio: docs.socio || {}, llegada: docs.llegada || {} });
 	const r = paraDeshacer(aviso.cambios || [], actual, campos);
 	const extra = {};
-	if (r.escribir.casa.estado) extra.historialEstado = historialCon(docs.casa, { ...docs.casa, estado: r.escribir.casa.estado }, { fecha: new Date().toISOString(), por: admin.nombre || 'Administrador', porUid: admin.uid }).historialEstado;
+	if (r.escribir.casa.estado) extra.historialEstado = historialCon(docs.casa, { ...docs.casa, estado: r.escribir.casa.estado }, { fecha: new Date().toISOString(), porUid: admin.uid }).historialEstado;
 	if (r.hechos.length) {
 		escribirEn(tx, id, docs, r.escribir, extra);
 		tx.crear(`properties/${id}/bitacora/${idNuevo()}`, { que: `el administrador deshizo el cambio del dueño (${r.hechos.join(', ')})`, quien: admin.uid, nombre: admin.nombre || '' }, { ahora: ['cuando'] });

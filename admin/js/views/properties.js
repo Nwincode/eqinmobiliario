@@ -347,7 +347,7 @@ function canEdit(p) {
 
 // Quién y cuándo, para el historial de estados (serverTimestamp no se permite dentro de arreglos).
 function autor() {
-	return { fecha: Timestamp.now(), por: session.profile?.nombre || session.user?.email || '', porUid: session.user?.uid || '' };
+	return { fecha: Timestamp.now(), porUid: session.user?.uid || '' };
 }
 export const entradaHistorial = (estado) => entradaEstado(estado, autor());
 
