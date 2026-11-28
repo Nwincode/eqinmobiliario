@@ -162,7 +162,7 @@ async function fotosDelPedido(paths = []) {
 
 // Un pedido del dueño de una casa en venta o renta, con la misma forma que las demás tarjetas: encabezado, lo que pide y
 // el pie (ficha, WhatsApp al dueño, Descartar y la acción principal con su ícono).
-function tarjetaPedido(c, { casa, dueno, fotos }, alCambiar) {
+export function tarjetaPedido(c, { casa, dueno, fotos }, alCambiar) {
 	const accion = accionDe(alCambiar);
 	const cierre = c.tipo === 'cierre';
 	const renta = casa?.operacion === 'renta';

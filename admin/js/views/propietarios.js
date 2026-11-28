@@ -144,7 +144,7 @@ async function renderLista(container) {
 // Datos de pago (solo el administrador): una cuenta por partes. Sin «Otro»: Banco | Tipo | Moneda y abajo Número | A nombre
 // de. Con «Otro»: Banco | Nombre del banco y abajo los cuatro. Unos de antes en texto libre se ven en una nota hasta
 // que se llenen los campos (al guardar sin llenarlos, quedan como están).
-function camposPago(conNoche) {
+export function camposPago(conNoche) {
 	const otro = (d) => d.pago?.banco === 'Otro';
 	const conPago = (d) => conNoche(d);
 	return [
