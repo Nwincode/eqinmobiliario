@@ -22,7 +22,8 @@ t('una casa en venta completa pasa; el asesor es el que atiende al dueño', () =
 	assert.deepEqual(r.errores, []);
 	assert.equal(r.casa.agentId, 'a1');
 	assert.equal(r.casa.precio, 350000);
-	assert.equal(r.casa.fotos[0].alt, 'Casa con jardín en Zona 15 – foto 1');
+	// Sin descripción, la foto se guarda sin ella: el sitio la arma al publicar con el título de ese día (photoAlt).
+	assert.ok(r.casa.fotos.every((f) => !('alt' in f)));
 	assert.equal(r.casa.vacacional, undefined);
 	// La marca de agua (marca: true) no la decide quien manda.
 	assert.ok(r.casa.fotos.every((f) => !('marca' in f)));
@@ -45,10 +46,10 @@ t(`mínimo ${MIN_FOTOS} fotos, sin repetir y de la carpeta de esta casa`, () => 
 	assert.match(revisar(venta({ fotos: fotos('c1', 4) })).errores[0].msg, /al menos 5 \(llevas 4\)/);
 	assert.deepEqual(campos(revisar(venta({ fotos: [...fotos('c1', 4), foto('otra', 9)] }))), ['fotos']);
 	assert.deepEqual(campos(revisar(venta({ fotos: [...fotos('c1', 4), foto('c1', 1)] }))), ['fotos']);
-	// La descripción de cada foto: la suya si la escribió (sin contacto); si no, la del título.
-	const conAlt = revisar(venta({ fotos: [{ ...foto('c1', 1), alt: 'Fachada con jardín' }, ...fotos('c1', 5).slice(1)] }));
+	// La descripción de cada foto: la suya si la escribió (sin contacto); si no, ninguna (no una fija con el título).
+	const conAlt = revisar(venta({ fotos: [{ ...foto('c1', 1), alt: ' Fachada con jardín ' }, { ...foto('c1', 2), alt: '  ' }, ...fotos('c1', 5).slice(2)] }));
 	assert.equal(conAlt.casa.fotos[0].alt, 'Fachada con jardín');
-	assert.equal(conAlt.casa.fotos[1].alt, 'Casa con jardín en Zona 15 – foto 2');
+	assert.equal('alt' in conAlt.casa.fotos[1], false);
 	assert.deepEqual(campos(revisar(venta({ fotos: [{ ...foto('c1', 1), alt: 'Llama al 5512 3456' }, ...fotos('c1', 5).slice(1)] }))), ['fotos']);
 	// En la ficha el origen no se revisa (lo revisa el servidor).
 	assert.deepEqual(revisar(venta({ fotos: [...fotos('c1', 4), { ...foto('c1', 9), url: 'http://127.0.0.1:9199/x' }] }), { revisarOrigen: false }).errores, []);

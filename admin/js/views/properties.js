@@ -55,14 +55,6 @@ function llenarSeo(d) {
 	seo.auto = auto;
 	d.seo = seo;
 }
-// Descripción de cada foto para Google: si está vacía se pone «Título – foto N». Lo escrito a mano se respeta.
-// Devuelve true si cambió alguna.
-function llenarAltFotos(d) {
-	const titulo = String(d.titulo || '').trim();
-	if (!titulo || !(d.fotos || []).some((f) => !String(f.alt || '').trim())) return false;
-	d.fotos = d.fotos.map((f, i) => (String(f.alt || '').trim() ? f : { ...f, alt: `${titulo} – foto ${i + 1}` }));
-	return true;
-}
 
 
 // Borra del almacenamiento las fotos de una propiedad eliminada (también la versión sin marca
@@ -732,7 +724,6 @@ export async function render(container, [id]) {
 			const antes = JSON.stringify(d.seo || {});
 			llenarSeo(d);
 			if (JSON.stringify(d.seo) !== antes) cambios.seo = d.seo;
-			if (llenarAltFotos(d)) cambios.fotos = d.fotos;
 			const en = d.en || {};
 			if (faltaIngles(d)) cambios.en = await traducirEn(d);
 			if (Object.keys(cambios).length) await guardarMasa(cambios, cambios)(p);
@@ -755,7 +746,6 @@ export async function render(container, [id]) {
 				const cambios = { descripcion: t.descripcion, descripcionAnterior: p.descripcion || '' };
 				if (!String(d.ciudad || '').trim() && /^zona\s*\d+/i.test(String(d.zona || '').trim())) cambios.ciudad = d.ciudad = 'Guatemala';
 				llenarSeo(d); cambios.seo = d.seo;
-				if (llenarAltFotos(d)) cambios.fotos = d.fotos;
 				cambios.en = {
 					titulo: t.en.titulo, descripcion: t.en.descripcion, amenidades: amenidadesEnDe({ amenidades: d.amenidades, en: t.en }), amenidadesDe: [...(d.amenidades || [])],
 					seo: { titulo: autoSeoTitle({ ...d, titulo: t.en.titulo }, true), descripcion: recortar(resumenSeo(t.en.descripcion), 155) },
@@ -1107,7 +1097,6 @@ function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = ''
 			path: (d) => `${d.vip ? '/vip/' : '/propiedad/'}${slugify(d.slug || d.titulo || '')}/`,
 			checks: (d) => [
 				[(d.fotos || []).length >= 5, `${(d.fotos || []).length} fotos (recomendado: 5 o más).`],
-				[(d.fotos || []).length > 0 && d.fotos.every((f) => f.alt), 'Todas las fotos tienen descripción.'],
 				[stripMd(d.descripcion).split(/\s+/).filter(Boolean).length >= 80, 'Descripción de al menos 80 palabras (Google premia el contenido original).'],
 				[Boolean(d.zona), 'Tiene zona (aparece en las búsquedas por zona).'],
 				...[['', d.seo?.descripcion], [' en inglés', d.en?.seo?.descripcion]].filter(([, t]) => propiaCorta(t))
@@ -1420,7 +1409,6 @@ async function renderEditor(container, id, emb = null) {
 			llenarSeo(conPublico);
 			d.seo = conPublico.seo;
 		}
-		llenarAltFotos(d);
 		btn.disabled = true;
 		// La casa como quedó guardada (con lo que otras pantallas escribieron mientras tanto).
 		let guardada = null;

@@ -226,7 +226,7 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Lugar de una propiedad** → `admin/js/seo-auto.js` `sinRepetir` (única regla; la usan `admin/js/reglas.js` y `admin/js/descripcion.js`) → `scripts/lib/util.mjs` `lugarDe` y `departamentoDe` → `scripts/lib/templates.mjs` (ficha, JSON-LD) y `scripts/build.mjs` (catálogos).
 
-**Descripción y SEO automáticos de una propiedad** → `admin/js/descripcion.js` (`generarDescripcion` solo presentación y nota del precio; `sinBloquesGenerados` quita las listas del formato viejo al publicar) → `admin/js/seo-auto.js` `autoSeoTitle` (60) → `admin/js/reglas.js` (traducción; `seoEnViejo` reconoce el SEO en inglés viejo) → `scripts/build.mjs` (`seoPropio`, `seoTraducido`: lo automático guardado se recalcula).
+**Descripción y SEO automáticos de una propiedad** → `admin/js/descripcion.js` (`generarDescripcion` solo presentación y nota del precio; `sinBloquesGenerados` quita las listas del formato viejo al publicar) → `admin/js/seo-auto.js` `autoSeoTitle` (60) → `admin/js/reglas.js` (traducción; `seoEnViejo` reconoce el SEO en inglés viejo) → `scripts/build.mjs` (`seoPropio`, `seoTraducido`: lo automático guardado se recalcula). La descripción de cada foto: solo la que se escribe a mano se guarda (la ficha, «Completar SEO» y la casa nueva del socio, `admin/js/casa-nueva.js`, no ponen una fija); vacía, la arma `scripts/lib/templates.mjs` `photoAlt` al publicar, con el título de ese día y en cada idioma («– foto N» / «– photo N»).
 
 **Página nueva del sitio** → `scripts/lib/templates.mjs` → `scripts/build.mjs` (escribirla, sitemap, hreflang) → `scripts/lib/i18n.mjs` (rutas y textos) → `scripts/lib/assets.mjs` si lleva JavaScript propio.
 

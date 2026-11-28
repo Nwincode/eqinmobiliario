@@ -281,6 +281,7 @@ Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una se
 | Las redes del ejemplo decían «eqinmobilariogt» y el manual de marca «@eqinmobiliariogt»; el usuario es `eqinmobiliario.gt`. | Un usuario de redes se copia de la cuenta, no se escribe de memoria; `sameAs` sale solo de Contenido → Contacto y redes. |
 | La 404 solo ofrecía un botón. | La 404 lleva las zonas, tipos y operaciones que se indexan (`porZona`). |
 | (Publicar casas) «Más recientes» salía en orden alfabético: el orden de las casas desempataba con `byOrder`, que cae en el título. Y la dirección en inglés repetida la ganaba la primera de ese orden, así que cambiar el orden cambiaba direcciones ya publicadas. | Un orden por fecha no usa `byOrder` (es para asesores, reseñas y páginas); `scripts/test-sitio.mjs` revisa que después de las destacadas vaya de la más nueva a la más vieja. Lo que se resuelve «el primero gana» (direcciones, títulos repetidos) va por la más antigua, nunca por el orden de los listados. |
+| (Publicar casas) La descripción de cada foto se guardaba fija al crear o guardar la casa («Título – foto N»): al cambiar el título quedaba la vieja y la página en inglés salía con el texto en español. | Lo que el generador sabe armar (descripción de foto, SEO automático) no se guarda escrito en la casa: se guarda solo lo que la persona escribió y el resto se arma al publicar. |
 
 ## 7. Cómo se le responde al usuario
 
