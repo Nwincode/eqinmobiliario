@@ -21,7 +21,7 @@ import { limitador } from '../lib/limite.mjs';
 import { leerPrivado } from '../lib/firestore.mjs';
 import { externasDe, purgarCasa, sinLeerTodo } from '../lib/ocupacion.mjs';
 import { anotarEnTx } from '../lib/bitacora.mjs';
-import { choqueExterno, motivoSocioNoConfirma, reservaDeSolicitud, queConfirmo, montosDeConfirmacion, motivoParaNoConfirmar, yaRespondida, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, textoPagoReabierto,
+import { choqueExterno, aRevisar, textoSinLeer, motivoSocioNoConfirma, reservaDeSolicitud, queConfirmo, montosDeConfirmacion, motivoParaNoConfirmar, yaRespondida, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, textoPagoReabierto,
 	vencePago, guardarVence, faltaDireccion, TEXTO_SIN_DIRECCION, MOTIVOS_NO, MOTIVOS_CANCELAR, MOTIVO_NO_LLEGO, textoNo, textoCliente } from '../../admin/js/reservas-calculo.js';
 
 const porUsuario = limitador(30);
@@ -31,13 +31,15 @@ const TOKEN = /^[A-Za-z0-9]{20,60}$/;
 // Las noches de Airbnb, Booking y VRBO de la casa de la solicitud, leídas con la cuenta de lectura fuera de la
 // transacción (los calendarios tardan). Uno que no responde y no tiene lo último leído del día (`sinLeer`) no frena la
 // confirmación, pero el socio tiene que decir que lo revisó a mano en la plataforma (`revisado`).
+// Uno que no respondió y se tomó de lo último guardado (`deHace`) también se revisa a mano (aRevisar), con su porqué.
 // Lo que no termina antes de `hasta` (ms) se da por `valor` (la función no se queda esperando).
 const aTiempo = (promesa, hasta, valor) => new Promise((ok) => {
 	const t = setTimeout(() => ok(valor), Math.max(0, hasta - Date.now()));
 	Promise.resolve(promesa).then((v) => { clearTimeout(t); ok(v); }, () => { clearTimeout(t); ok(valor); });
 });
-// A lo más 2,5 s por plataforma (y nunca después de `hasta`): lo que no responde se avisa («Revisé…»), con lo último
-// leído si hay (externasDe), y la confirmación cabe en los 10 s de Netlify. Leídos ahora (`fresco`), no lo recordado.
+// A lo más 5 s por plataforma, en paralelo (y nunca después de `hasta`): lo que no responde se avisa («Revisé…»), con lo
+// último leído si hay (externasDe), y la confirmación cabe en los 10 s de Netlify (ver PLAZO_MS). Leídos ahora
+// (`fresco`), no lo recordado.
 // Si la solicitud o privado/socio no se pudieron leer (no es lo mismo que no tener calendarios): «Revisé las plataformas».
 async function nochesExternas(leadId, hasta) {
 	try {
@@ -46,13 +48,12 @@ async function nochesExternas(leadId, hasta) {
 		if (!ID.test(lead?.propertyId || '')) return { rangos: [], sinLeer: [] };
 		const privado = await aTiempo(leerPrivado(`properties/${lead.propertyId}/privado/socio`), hasta, undefined);
 		if (privado === undefined) return sinLeerTodo();
-		return await aTiempo(externasDe(privado, lead.propertyId, { espera: Math.min(2500, hasta - Date.now()), hasta, fresco: true }), hasta, sinLeerTodo());
+		return await aTiempo(externasDe(privado, lead.propertyId, { espera: Math.min(ESPERA_ICAL, hasta - Date.now()), hasta, fresco: true }), hasta, sinLeerTodo());
 	} catch (err) {
 		console.error('Reservas: calendarios de las plataformas', err.message);
 		return sinLeerTodo();
 	}
 }
-export const textoSinLeer = (sinLeer) => `No pudimos leer el calendario de ${sinLeer.join(' y ')}: revisa allá que esas noches estén libres y confirma otra vez marcando «Revisé ${sinLeer.join(' y ')}».`;
 
 const YA = 'Esta solicitud ya se respondió (otra persona u otra pestaña). Recarga la página.';
 
@@ -77,13 +78,14 @@ const ACCIONES = {
 	// Nace la reserva con su comisión (la ganancia, se paga el día de llegada) y su plazo de pago, la solicitud y el chat
 	// dicen «confirmada» y el cliente recibe los datos de pago de la ficha del socio. Los montos son los congelados al
 	// llegar la solicitud (montosSolicitud): lo que se le cotizó al cliente, nunca los precios de hoy ni lo que mande el panel.
-	async confirmar(tx, socio, leadId, _motivo, { rangos: externas = [], sinLeer = [] } = {}, revisado = false) {
+	async confirmar(tx, socio, leadId, _motivo, ext = {}, revisado = false) {
+		const externas = ext.rangos || [], sinLeer = aRevisar(ext);
 		const { lead, casa, token, chat } = await cargar(tx, socio, leadId);
 		if (yaRespondida(chat.estado, lead.solicitud?.estado) || await tx.leer(`reservas/${leadId}`)) falla(409, YA);
 		// Noches ya tomadas en Airbnb, Booking o VRBO (sus calendarios, leídos antes de la transacción): no se confirma encima.
 		const enOtra = choqueExterno(lead.reserva, externas);
 		if (enOtra) falla(409, enOtra);
-		if (sinLeer.length && !revisado) throw Object.assign(new Respuesta(409, textoSinLeer(sinLeer)), { faltaRevisar: sinLeer });
+		if (sinLeer.length && !revisado) throw Object.assign(new Respuesta(409, textoSinLeer(ext)), { faltaRevisar: sinLeer });
 		const montos = await congelarMontos(tx, leadId, { lead, casa });
 		// La llegada ya pasó, la casa salió del sitio o cambió de moneda: no se confirma (se cierra con «No se dio»).
 		const no = motivoParaNoConfirmar(lead, casa, montos);
@@ -190,7 +192,11 @@ async function conReserva(tx, socio, leadId) {
 const sinCuenta = (err) => err?.rechazo || err?.codigo === 'PERMISSION_DENIED' || err?.status === 401 || err?.status === 403;
 
 // Un solo plazo para todo el pedido, desde que entra: 8,5 s (Netlify corta a los 10). Cada espera se acota con él.
+// Las cuentas, en el peor caso: leer la solicitud y privado/socio (~0,5 s) y las plataformas en paralelo (ESPERA_ICAL,
+// 5 s) terminan a más tardar a los 5,5 s (`hasta - 3000`); la transacción tiene lo que quede menos 1,5 s, nunca menos de
+// 2 s (hasta los 7,5 s), y si el commit se cortó, revisar si quedó escrito, 1,5 s más: 9 s. Lo de después va con waitUntil.
 const PLAZO_MS = 8500;
+const ESPERA_ICAL = 5000;
 export default async (req, context) => {
 	const hasta = Date.now() + PLAZO_MS;
 	if (req.method === 'GET') {
@@ -218,9 +224,9 @@ export default async (req, context) => {
 	if (!accion || !ID.test(leadId)) return json(400, { error: 'Solicitud inválida' });
 	let hecho, externas;
 	try {
-		// Todo dentro del plazo: calendarios (≤ 2,5 s), transacción (lo que quede menos 1,5 s, al menos 2 s) y, si el commit se
+		// Todo dentro del plazo: calendarios (≤ 5 s), transacción (lo que quede menos 1,5 s, al menos 2 s) y, si el commit se
 		// cortó, la revisión de si quedó escrito (≤ 1,5 s).
-		externas = accion === 'confirmar' ? await nochesExternas(leadId, hasta - 4000) : undefined;
+		externas = accion === 'confirmar' ? await nochesExternas(leadId, hasta - 3000) : undefined;
 		hecho = await transaccion((tx) => ACCIONES[accion](tx, socio, leadId, String(cuerpo.motivo || ''), externas, cuerpo.revisado === true), 5, Math.max(2000, hasta - Date.now() - 1500));
 	} catch (err) {
 		if (err instanceof Respuesta) return json(err.status, { error: err.message, ...(err.caminoDeAntes ? { caminoDeAntes: true } : {}), ...(err.faltaRevisar ? { faltaRevisar: err.faltaRevisar } : {}), ...(err.message === YA ? { yaRespondida: true } : {}) });

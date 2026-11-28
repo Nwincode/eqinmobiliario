@@ -20,6 +20,7 @@ import { leerPublico, leerPrivado, datosConfigurados } from '../lib/firestore.mj
 import { moraDe } from '../lib/comisiones.mjs';
 import { externasDe, purgarCasa, etiquetaCasa, apartadasDe, sinLeerTodo } from '../lib/ocupacion.mjs';
 import { json, usuario } from '../lib/auth.mjs';
+import { condicionesDeLaCasa } from '../../admin/js/reservas-calculo.js';
 import { limitador, limitadorDurable, ipDe } from '../lib/limite.mjs';
 
 const V = globalThis.EQVacacional;
@@ -59,6 +60,7 @@ async function purgar(req) {
 }
 
 export default async (req, context) => {
+	const entrada = Date.now();
 	if (req.method === 'POST') return purgar(req);
 	const url = new URL(req.url);
 	const id = url.searchParams.get('id') || '';
@@ -75,6 +77,7 @@ export default async (req, context) => {
 	let apartadas = [];
 	let atraso = 0;
 	let sinLeer = [];
+	let deHace = [];
 	const ahora = Date.now();
 	if (datosConfigurados()) {
 		// Cada lectura falla por su cuenta: sin Airbnb o sin socio, el calendario igual responde. privado/socio que no se
@@ -85,12 +88,15 @@ export default async (req, context) => {
 			apartadasDe(id, ahora),
 			moraDe(p.propietarioId, ahora)
 		].map((x) => Promise.resolve(x).catch(() => null)));
-		// Al día: a lo más 3 s por plataforma (la página espera 5 s y Netlify corta a los 10); lo que no responde, con lo
-		// último guardado del día o en `sinLeer`.
-		const ext = privado === FALLO ? sinLeerTodo() : await externasDe(privado, id, fresco ? { fresco: true, espera: 3000 } : {});
+		// Al día: a lo más 3 s por plataforma (la página espera 5 s y Netlify corta a los 10); al confirmar desde el panel
+		// (`para=confirmar`), 5 s, como /api/reservas. Lo que no responde, con lo último guardado del día (`deHace`: al
+		// confirmar se revisa a mano) o en `sinLeer`. Guardar lo leído no pasa de los 8,5 s.
+		const espera = url.searchParams.get('para') === 'confirmar' ? 5000 : 3000;
+		const ext = privado === FALLO ? sinLeerTodo() : await externasDe(privado, id, fresco ? { fresco: true, espera, hasta: entrada + 8500 } : {});
 		externas = ext.rangos.map((r) => ({ desde: r.desde, hasta: r.hasta }));
 		fuentes = ext.fuentes;
 		sinLeer = ext.sinLeer;
+		deHace = ext.deHace || [];
 		// Las que apartan las solicitudes abiertas (ocupacion.mjs `apartadasDe`, la misma que revisa /api/solicitud).
 		apartadas = (abiertas || []).map((r) => ({ desde: r.desde, hasta: r.hasta }));
 		atraso = mora || 0;
@@ -98,19 +104,15 @@ export default async (req, context) => {
 	const hoy = V.hoy();
 	const vigentes = (lista) => V.unirRangos(lista).filter((r) => r.hasta > hoy);
 	const ocupadas = vigentes([...manuales, ...apartadas, ...externas]);
-	// Precios al público y mínimos de noches al día: el socio los cambia sin esperar a que se publique el sitio.
+	// Precios al público, mínimos de noches, limpieza y depósito al día: el socio los cambia sin esperar a que se publique
+	// el sitio. Los mismos que cotiza /api/solicitud (condicionesDeLaCasa, una sola pieza).
 	const v = p.vacacional || {};
-	const plan = { base: Number(v.base) || 0, finde: Number(v.finde) || 0, tarifas: (v.tarifas || []).filter((x) => x?.hasta >= hoy) };
-	// Un mínimo con la fecha final antes de la inicial (dato malo) no vale.
-	const minimos = (v.minimos || []).filter((x) => x?.hasta >= hoy && x.desde <= x.hasta);
+	const { plan, nochesMin, minimos, limpieza, deposito } = condicionesDeLaCasa(p, hoy);
 	// Las personas que caben, al día (el socio las cambia en su panel): la regla de la solicitud compara con esto.
 	// Solo un número de 1 o más (la regla `caben` igual: lo demás, sin tope).
 	const huespedesMax = typeof v.huespedesMax === 'number' && v.huespedesMax >= 1 ? Math.floor(v.huespedesMax) : undefined;
-	// El mínimo general, la limpieza y el depósito de hoy (los mismos que revisa /api/solicitud: cotizacionDeLaCasa).
-	const nochesMin = Math.max(1, Math.floor(Number(v.nochesMin) || 1));
-	const limpieza = V.r2(Math.max(0, Number(v.limpieza) || 0)), deposito = V.r2(Math.max(0, Number(v.deposito) || 0));
 	return respuesta(200, { ocupadas, externas: vigentes(externas), apartadas: vigentes(apartadas), plan, nochesMin, minimos, limpieza, deposito, ...(huespedesMax ? { huespedesMax } : {}), ...(atraso === 3 ? { pausada: true } : {}),
-		fuente: fuentes.length ? fuentes.join(',') : 'manual', ...(sinLeer.length ? { sinLeer } : {}) }, id, fresco);
+		fuente: fuentes.length ? fuentes.join(',') : 'manual', ...(sinLeer.length ? { sinLeer } : {}), ...(fresco && deHace.length ? { deHace } : {}) }, id, fresco);
 };
 
 export const config = { path: ['/api/disponibilidad', '/api/disponibilidad/al-dia'] };

@@ -133,6 +133,18 @@ await t('justo antes de enviar: precios al día (si cambió el total, no se env�
 	assert.match(leer('js/site.js'), /err\.datos\.recargar && typeof form\.eqRevisar === 'function'\) form\.eqRevisar\(\)/);
 });
 
+await t('confirmar cabe en los 10 s de Netlify con 5 s por plataforma: calendarios hasta los 5,5 s, transacción ≥ 2 s, revisión 1,5 s', () => {
+	const f = leer('netlify/functions/reservas.mjs');
+	const plazo = Number(/const PLAZO_MS = (\d+);/.exec(f)[1]), espera = Number(/const ESPERA_ICAL = (\d+);/.exec(f)[1]);
+	const margen = Number(/nochesExternas\(leadId, hasta - (\d+)\)/.exec(f)[1]);
+	assert.equal(espera, 5000);
+	assert.match(f, /Math\.max\(2000, hasta - Date\.now\(\) - 1500\)/);
+	// Lo peor: calendarios hasta `plazo - margen`, transacción al menos 2 s, y 1,5 s para ver si quedó escrito.
+	assert.ok(plazo - margen + Math.max(2000, margen - 1500) + 1500 <= 9000, 'bajo los 10 s con 1 s de holgura');
+	assert.ok(plazo - margen >= espera + 400, 'leer la solicitud y privado/socio antes de las plataformas cabe');
+	assert.match(leer('netlify/functions/disponibilidad.mjs'), /para'\) === 'confirmar' \? 5000 : 3000/);
+});
+
 await t('el código de la reserva lo pone el servidor: la página no lo inventa y el «¡Solicitud enviada!» usa el de la respuesta', () => {
 	assert.doesNotMatch(leer('js/vacacional.js'), /codigoReserva|getRandomValues/);
 	assert.match(leer('js/reserva-chat.js'), /return \{ token: d\.token, codigo: d\.codigo \|\| '' \};/);
