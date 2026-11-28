@@ -5,9 +5,9 @@
 // administrador o el asesor del dueño en «Cambios de los dueños» (admin/js/views/cambios-dueno.js), con aviso en la
 // campana. Nada cambia en la casa hasta que el equipo lo aplica. Las fotos suben a pedidosDueno/{casa}/{pedido}/1…6, la
 // carpeta que el servidor le aparta (storage.rules: sin reemplazar, la ✕ la borra; solo vigente y antes de enviar).
-import { db, doc, collection, setDoc, serverTimestamp } from './firebase.js';
+import { db, doc, collection, setDoc, serverTimestamp, storage, ref, getDownloadURL } from './firebase.js';
 import { h, modal, toast, showError, errorMessage, fallaDelServidor, menuMas, hoy } from './ui.js';
-import { renderForm } from './form.js';
+import { renderForm, deleteImage } from './form.js';
 import { prefijoMoneda } from './formato.js';
 import { precioFinalDe, faltaFechaCierre } from './cierre-casa.js';
 
@@ -23,33 +23,37 @@ const base = (resumen, p, tipo, texto) => ({
 });
 
 // Una ventana con su formulario y su botón (por omisión «Enviar», con el ícono de enviar de la maqueta aprobada).
-function ventana(titulo, cuerpo, enviar, [icono, texto] = ['icon-paper-plane-o', 'Enviar']) {
+// alCerrar: al cerrarla sin enviar (Cancelar, la ✕ o fuera).
+function ventana(titulo, cuerpo, enviar, [icono, texto] = ['icon-paper-plane-o', 'Enviar'], { alCerrar } = {}) {
 	const btn = h('button', { type: 'button', class: 'btn btn-primary' }, ic(icono), texto);
-	const m = modal({ title: titulo, body: cuerpo, footer: [h('button', { type: 'button', class: 'btn btn-light', 'data-bs-dismiss': 'modal' }, 'Cancelar'), btn] });
+	let enviado = false;
+	const m = modal({ title: titulo, body: cuerpo, footer: [h('button', { type: 'button', class: 'btn btn-light', 'data-bs-dismiss': 'modal' }, 'Cancelar'), btn],
+		onClose: () => { if (!enviado && alCerrar) alCerrar(); } });
 	btn.addEventListener('click', async () => {
 		btn.disabled = true;
-		try { if (await enviar()) m.close(); } catch (err) { showError(err); }
+		try { if (await enviar()) { enviado = true; m.close(); } } catch (err) { showError(err); }
 		btn.disabled = false;
 	});
 	return m;
 }
 
 // La carpeta de fotos del pedido la aparta el servidor (/api/pedido-dueno: vigente un día, con tope; storage.rules solo
-// deja subir ahí). Devuelve el id del pedido.
+// deja subir ahí). Devuelve { id, fotos }: las que ya subió a esa carpeta (si el servidor le vuelve a dar la misma).
 async function apartarPedido(casaId) {
 	const { session } = await import('./session.js');
 	const res = await fetch('/api/pedido-dueno', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await session.user.getIdToken()}` }, body: JSON.stringify({ casa: casaId }) });
 	const r = await res.json().catch(() => ({}));
 	if (!res.ok || !r.id) throw new Error(r.error || fallaDelServidor(res.status));
-	return r.id;
+	return { id: r.id, fotos: Array.isArray(r.fotos) ? r.fotos : [] };
 }
 
 export async function pedirCambio(resumen, p) {
 	// Sin carpeta (el servidor no respondió), el pedido sale igual, solo con el texto: se dice en la misma ventana.
-	let id = '', sinFotos = '';
-	try { id = await apartarPedido(p.id); } catch (err) { sinFotos = `Las fotos no se pueden subir ahora (${errorMessage(err)}): envía el texto y mándalas después.`; }
-	const ref = id ? doc(db, 'comentariosPropietarios', id) : doc(collection(db, 'comentariosPropietarios'));
-	const datos = { texto: '', fotos: [] };
+	let id = '', ya = [], sinFotos = '';
+	try { ({ id, fotos: ya } = await apartarPedido(p.id)); } catch (err) { sinFotos = `Las fotos no se pueden subir ahora (${errorMessage(err)}): envía el texto y mándalas después.`; }
+	const refPedido = id ? doc(db, 'comentariosPropietarios', id) : doc(collection(db, 'comentariosPropietarios'));
+	// Las que ya estaban en su carpeta (otra vez que abrió la ventana): se ven y se pueden quitar.
+	const datos = { texto: '', fotos: storage ? (await Promise.all(ya.map((path) => getDownloadURL(ref(storage, path)).then((url) => ({ path, url }), () => null)))).filter(Boolean) : [] };
 	const form = renderForm([
 		{ name: 'texto', label: '¿Qué quieres cambiar?', type: 'textarea', rows: 3, maxlength: 2000, placeholder: 'El precio, una foto, un dato…' },
 		id ? { name: 'fotos', label: 'Fotos (opcional)', type: 'images', simple: true, max: MAX_FOTOS_PEDIDO, numeradas: true, maxSubidas: MAX_FOTOS_PEDIDO, borrarAlQuitar: true,
@@ -61,9 +65,12 @@ export async function pedirCambio(resumen, p) {
 		if (!texto) { toast('Escribe qué quieres cambiar.', 'warning'); return false; }
 		const fotos = (d.fotos || []).map((f) => f.path).filter(Boolean).slice(0, MAX_FOTOS_PEDIDO);
 		// Sin fotos, sin la llave (así también lo aceptan las reglas de antes).
-		await setDoc(ref, { ...base(resumen, p, 'cambios', texto), ...(fotos.length ? { fotos } : {}) });
+		await setDoc(refPedido, { ...base(resumen, p, 'cambios', texto), ...(fotos.length ? { fotos } : {}) });
 		toast('Listo: tu asesor recibió lo que quieres cambiar.');
 		return true;
+	}, undefined, {
+		// Cerrada sin enviar: sus fotos se borran (si alguna no se puede, la barre el control de cada hora al vencer).
+		alCerrar: () => { for (const f of form.getData().fotos || []) deleteImage(f.path); }
 	});
 }
 

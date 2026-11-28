@@ -9,7 +9,7 @@
 // rentada y su fecha y precio final quedan en privado/cierre, admin/js/cierre-casa.js). Los atiende el administrador o el
 // asesor del dueño (las reglas solo le dejan leer los de sus dueños); cada tarjeta lleva la ficha, WhatsApp al dueño,
 // «Descartar» y su acción principal. Los de la casa por noche (el servidor) solo los ve el administrador.
-import { db, doc, getDoc, writeBatch, serverTimestamp, storage, ref, getDownloadURL } from '../firebase.js';
+import { db, doc, getDoc, runTransaction, serverTimestamp, storage, ref, getDownloadURL } from '../firebase.js';
 import { h, toast, showError, errorMessage, fallaDelServidor, pageHeader, emptyState, mount, iconoBtn, formatDate, spinner, confirmDialog, nombreYDatos, badge, formatPrice } from '../ui.js';
 import { session, markPending } from '../session.js';
 import { operacionDe, estadoDe } from '../estados.js';
@@ -154,19 +154,24 @@ async function abrirAplicar(c, alCambiar) {
 			return true;
 		} });
 }
+// En una transacción: la casa se vuelve a leer (otro pudo cerrarla o cambiarla mientras la ventana estaba abierta).
 export async function aplicarCierre(c, casa, valores) {
-	const yaCerrada = estaCerrada(casa);
-	const lote = writeBatch(db);
-	lote.set(doc(db, 'properties', casa.id, 'privado', 'cierre'), { ...cierreDePedido({ ...c, ...valores }, casa), por: session.user.uid, updatedAt: serverTimestamp() });
-	if (!yaCerrada) {
-		const { cambioDeEstado } = await import('./properties.js');
-		lote.update(doc(db, 'properties', casa.id), { ...cambioDeEstado(estadoDeCierre(casa.operacion)), updatedAt: serverTimestamp(), updatedBy: session.user.uid });
-	}
-	lote.set(doc(db, 'avisosAtendidos', claveListo({ tipo: 'cambios', objeto: c.id })), { tipo: 'cambios', objeto: c.id, agentId: c.agentId || '', por: session.user.uid, fecha: serverTimestamp() });
-	await lote.commit();
-	if (!yaCerrada) {
+	const { cambioDeEstado } = await import('./properties.js');
+	const refCasa = doc(db, 'properties', casa.id);
+	const cerro = await runTransaction(db, async (tx) => {
+		const s = await tx.get(refCasa);
+		if (!s.exists()) throw new Error('La casa ya no existe.');
+		const ahora = { id: s.id, ...s.data() };
+		if (ahora.operacion === 'vacacional') throw new Error('Esta casa es por noche: no se vende ni se renta desde aquí.');
+		tx.set(doc(db, 'properties', casa.id, 'privado', 'cierre'), { ...cierreDePedido({ ...c, ...valores }, ahora), por: session.user.uid, updatedAt: serverTimestamp() });
+		const cambia = !estaCerrada(ahora);
+		if (cambia) tx.update(refCasa, { ...cambioDeEstado(estadoDeCierre(ahora.operacion)), updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+		tx.set(doc(db, 'avisosAtendidos', claveListo({ tipo: 'cambios', objeto: c.id })), { tipo: 'cambios', objeto: c.id, agentId: c.agentId || '', por: session.user.uid, fecha: serverTimestamp() });
+		return cambia ? ahora : null;
+	});
+	if (cerro) {
 		(await import('../portal.js')).refrescarPortalesDe([casa.id]);
-		await markPending(`Estado de ${casa.titulo || casa.id}: ${estadoDe({ estado: estadoDeCierre(casa.operacion) }).label}`);
+		await markPending(`Estado de ${cerro.titulo || cerro.id}: ${estadoDe({ estado: estadoDeCierre(cerro.operacion) }).label}`);
 	}
 }
 

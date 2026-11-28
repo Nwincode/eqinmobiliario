@@ -296,7 +296,10 @@ export { guardarPrivadoVacacional, crearCasa };
 //  - cambios: campos de la casa («vacacional», campo por campo); undefined = quitarlo.
 //  - socio: solo los campos del costo del socio que cambiaron. llegada: dirección y mapa de una casa por noche.
 //  - sinLlegada: dejó de ser por noche; se borra privado/llegada.
-export async function guardarCambios(id, cambios, { socio = null, llegada = null, sinLlegada = false } = {}) {
+// cierre: el bloque «Cierre» de la ficha ({ form }): se decide aquí, en la misma transacción (cierrePorGuardar), y lo que
+// queda guardado vuelve en `cierre.queda`. Sin él (importador, traducción, cualquier otro), si cambia el estado el cierre
+// se borra: la casa vuelve a ofrecerse o cambió de vendida a rentada (otra operación). Así ningún camino deja un cierre viejo.
+export async function guardarCambios(id, cambios, { socio = null, llegada = null, sinLlegada = false, cierre = null } = {}) {
 	const ref = doc(db, 'properties', id);
 	const quien = autor();
 	const conBitacora = await bitacoraActiva();
@@ -308,6 +311,9 @@ export async function guardarCambios(id, cambios, { socio = null, llegada = null
 		const vac = esVacacional(casa);
 		// El costo del socio guardado AHORA (también en una casa que dejó de ser por noche: la bitácora lo compara).
 		const guardado = (await tx.get(doc(db, 'properties', id, 'privado', 'socio')).catch(() => null))?.data() || {};
+		// (Las lecturas de una transacción van antes de cualquier escritura.)
+		const refCierre = doc(db, 'properties', id, 'privado', 'cierre');
+		const cierrePrevio = cierre ? (await tx.get(refCierre)).data() || null : null;
 		const socioDespues = vac ? { ...guardado, ...socioLimpio(socio || {}) } : guardado;
 		if (vac) {
 			// El precio público sale del costo del socio guardado AHORA más lo que se cambió aquí.
@@ -324,6 +330,13 @@ export async function guardarCambios(id, cambios, { socio = null, llegada = null
 		tx.set(ref, casa);
 		if (vac) await guardarPrivadoVacacional(id, socio, llegada, tx, { bitacoraId: igual(fotoCasa({}, guardado), fotoCasa({}, socioDespues)) ? '' : bitacoraId });
 		if (sinLlegada) tx.delete(doc(db, 'properties', id, 'privado', 'llegada'));
+		if (cierre) {
+			const previo = cierrePrevio;
+			const que = cierrePorGuardar(cierre.form, casa, previo);
+			if (que === 'borrar') tx.delete(refCierre);
+			else if (que && !mismoCierre(previo, que)) tx.set(refCierre, { ...que, por: session.user.uid, updatedAt: serverTimestamp() });
+			cierre.queda = que === 'borrar' ? null : que || previo;
+		} else if (hist.cambioEstado) tx.delete(refCierre);
 		return casa;
 	});
 }
@@ -364,23 +377,13 @@ export function cambioDeEstado(estado) {
 	return { estado, estadoFecha: serverTimestamp(), historialEstado: arrayUnion(entradaHistorial(estado)) };
 }
 
-// El cierre de una casa (privado/cierre) según la ficha: se escribe si cambió y se borra si la casa vuelve a ofrecerse.
-// Devuelve lo que queda guardado. (cierre-casa.js cierrePorGuardar decide.)
-async function guardarCierre(id, casa, form, previo) {
-	const que = cierrePorGuardar(form, casa, previo);
-	const refCierre = doc(db, 'properties', id, 'privado', 'cierre');
-	if (que === 'borrar') { await deleteDoc(refCierre); return null; }
-	if (!que) return previo;
-	const igual = previo && ['fechaCierre', 'precioFinal', 'moneda', 'operacion'].every((k) => (previo[k] ?? '') === (que[k] ?? ''));
-	if (!igual) await setDoc(refCierre, { ...que, por: session.user.uid, updatedAt: serverTimestamp() });
-	return igual ? previo : que;
-}
-// El cambio de estado desde la lista (una o varias), en un lote: una casa que vuelve a ofrecerse pierde su cierre
-// (privado/cierre; borrar uno que no existe no falla).
-function loteDeEstado(id, cambios) {
+const mismoCierre = (a, b) => Boolean(a) && ['fechaCierre', 'precioFinal', 'moneda', 'operacion'].every((k) => (a[k] ?? '') === (b[k] ?? ''));
+// El cambio de estado desde la lista (una o varias), en un lote: si el estado cambia, el cierre (privado/cierre) se borra,
+// lo mismo que en guardarCambios: la casa vuelve a ofrecerse o pasa de vendida a rentada. (Borrar uno que no existe no falla.)
+function loteDeEstado(id, cambios, antes) {
 	const lote = writeBatch(db);
 	lote.update(doc(db, 'properties', id), { ...cambios, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
-	if (cambios.estado && !estaCerrada(cambios)) lote.delete(doc(db, 'properties', id, 'privado', 'cierre'));
+	if (cambios.estado && cambios.estado !== estadoDe(antes).valor) lote.delete(doc(db, 'properties', id, 'privado', 'cierre'));
 	return lote;
 }
 
@@ -492,7 +495,7 @@ export async function render(container, [id]) {
 	// Guarda al instante un cambio rápido de la lista y vuelve a dibujar.
 	const guardarRapido = async (p, cambios, local, desc, aviso) => {
 		try {
-			await loteDeEstado(p.id, cambios).commit();
+			await loteDeEstado(p.id, cambios, p).commit();
 			Object.assign(p, local, { updatedAt: { seconds: Date.now() / 1000 } });
 			refrescarPortalesDe([p.id]);
 			await markPending(desc);
@@ -630,7 +633,7 @@ export async function render(container, [id]) {
 		draw();
 	};
 	const guardarMasa = (cambios, local) => async (p) => {
-		await loteDeEstado(p.id, cambios).commit();
+		await loteDeEstado(p.id, cambios, p).commit();
 		Object.assign(p, local, { updatedAt: { seconds: Date.now() / 1000 } });
 	};
 	selMasaEstado.addEventListener('change', () => {
@@ -1462,10 +1465,13 @@ async function renderEditor(container, id, emb = null) {
 				guardada = d;
 			} else {
 				// Solo lo que cambió aquí, sobre lo guardado ahora; lo privado, en la misma transacción.
+				// El cierre (privado/cierre) también va en la misma transacción.
+				const cierre = { form: cierreForm };
 				guardada = await guardarCambios(ref.id, cambiosEntre(alAbrir.datos, d), {
 					socio: esVacacional(d) ? cambiosEntre(alAbrir.socio, socio, []) : null,
-					llegada, sinLlegada
+					llegada, sinLlegada, cierre
 				});
+				cierreGuardado = cierre.queda;
 			}
 			// Lo guardado es el punto de partida de un segundo «Guardar» sin recargar (también el acuerdo y «data», abajo).
 			alAbrir = comoQuedo(mio);
@@ -1481,8 +1487,11 @@ async function renderEditor(container, id, emb = null) {
 			if (acuerdo === 'borrar') await deleteDoc(acuerdoRef);
 			else if (acuerdo) await setDoc(acuerdoRef, { ...acuerdo, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
 			if (acuerdo) acuerdoPropio = acuerdo === 'borrar' ? null : acuerdo;
-			// El cierre: con la casa vendida o rentada, lo de la ficha; si vuelve a ofrecerse, se borra.
-			cierreGuardado = await guardarCierre(ref.id, { ...guardada, operacion: d.operacion }, cierreForm, cierreGuardado);
+			// Una casa nueva ya vendida o rentada: su cierre, después de crearla (su regla lee la casa).
+			if (isNew) {
+				const que = cierrePorGuardar(cierreForm, guardada, null);
+				if (que && que !== 'borrar') { await setDoc(doc(db, 'properties', ref.id, 'privado', 'cierre'), { ...que, por: session.user.uid, updatedAt: serverTimestamp() }); cierreGuardado = que; }
+			}
 			acuerdoTocado = false;
 			eraVacacional = Boolean(llegada);
 			if (!isNew) refrescarPortalesDe([ref.id]);

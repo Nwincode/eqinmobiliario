@@ -125,10 +125,20 @@ t('La ficha de la casa: el cierre se revisa, se guarda en privado/cierre y se bo
 	// El cierre nunca va al documento público de la casa.
 	assert.match(f, /const cierreForm = d\.cierre \|\| \{\};\n\t\tdelete d\.cierre;/);
 	assert.match(f, /const \{ socio = \{\}, acuerdo, cierre, \.\.\.datos \} = clonar\(f\);/);
-	assert.match(f, /cierreGuardado = await guardarCierre\(ref\.id, /);
-	// Cambiar el estado desde la lista (una o varias) borra el cierre de la que vuelve a ofrecerse, en el mismo lote.
-	assert.match(f, /if \(cambios\.estado && !estaCerrada\(cambios\)\) lote\.delete\(doc\(db, 'properties', id, 'privado', 'cierre'\)\);/);
-	assert.equal((f.match(/await loteDeEstado\(p\.id, cambios\)\.commit\(\);/g) || []).length, 2);
+	// El cierre va en la transacción de guardarCambios (la ficha), y cualquier otro camino que cambie el estado (el
+	// importador, la traducción…) lo borra ahí mismo: ninguno deja un cierre viejo.
+	const gc = f.slice(f.indexOf('export async function guardarCambios'), f.indexOf('\n}\n', f.indexOf('export async function guardarCambios')));
+	assert.match(gc, /const cierrePrevio = cierre \? \(await tx\.get\(refCierre\)\)\.data\(\) \|\| null : null;/);
+	assert.ok(gc.indexOf('tx.get(refCierre)') < gc.indexOf('tx.set(ref, casa)'), 'las lecturas antes de las escrituras');
+	assert.match(gc, /\} else if \(hist\.cambioEstado\) tx\.delete\(refCierre\);/);
+	assert.match(f, /llegada, sinLlegada, cierre\n\t\t\t\t\}\);\n\t\t\t\tcierreGuardado = cierre\.queda;/);
+	assert.match(fuente('views/importar.js'), /guardarCambios\(p\.id, cambios/);
+	// Cambiar el estado desde la lista (una o varias) borra el cierre en el mismo lote (vuelve a ofrecerse o vendida↔rentada).
+	assert.match(f, /if \(cambios\.estado && cambios\.estado !== estadoDe\(antes\)\.valor\) lote\.delete\(doc\(db, 'properties', id, 'privado', 'cierre'\)\);/);
+	assert.equal((f.match(/await loteDeEstado\(p\.id, cambios, p\)\.commit\(\);/g) || []).length, 2);
+	// «Aplicar» vuelve a leer la casa dentro de su transacción.
+	const cd = fuente('views/cambios-dueno.js');
+	assert.match(cd, /const cerro = await runTransaction\(db, async \(tx\) => \{\n\t\tconst s = await tx\.get\(refCasa\);/);
 	// El socio no ve ni escribe el cierre (su ficha de casa nueva).
 	assert.match(f, /startsWith\('cierre\.'\)/);
 	assert.match(f, /let cierreGuardado = isNew \|\| paraSocio \? null :/);

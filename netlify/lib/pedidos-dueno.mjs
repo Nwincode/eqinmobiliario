@@ -13,6 +13,9 @@ export const VIGENCIA = 86400_000;
 // Pedidos abiertos a la vez por dueño (cada uno con su carpeta de 6 fotos a lo más).
 export const MAX_ABIERTOS = 5;
 export const vigente = (x, ahora = Date.now()) => ahora - fecha(x?.cuando) < VIGENCIA;
+// Una carpeta se vuelve a dar solo si le queda al menos REUSO: si no, el dueño subiría y enviaría justo cuando vence.
+export const REUSO = 6 * 3600_000;
+export const reusable = (x, ahora = Date.now()) => VIGENCIA - (ahora - fecha(x?.cuando)) >= REUSO;
 const GRACIA = 2 * 3600_000;
 
 export async function barrerPedidosDueno(ahora = Date.now()) {

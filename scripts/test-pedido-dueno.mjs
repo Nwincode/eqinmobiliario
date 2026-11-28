@@ -30,6 +30,26 @@ await t('aparta la carpeta de un pedido de SU casa en venta; la misma mientras n
 	poner(`comentariosPropietarios/${r.id}`, { tipo: 'cambios', propiedadId: 'venta1' });
 	assert.notEqual((await llamar('venta1')).id, r.id);
 });
+await t('al volver a abrir: la misma carpeta con las fotos que ya tiene; si le quedan menos de 6 h, una nueva', async () => {
+	const r = await llamar('venta1');
+	assert.deepEqual(r.fotos, []);
+	foto('venta1', r.id, 2); foto('venta1', r.id, 1);
+	const otra = await llamar('venta1');
+	assert.equal(otra.id, r.id);
+	assert.deepEqual(otra.fotos, [`pedidosDueno/venta1/${r.id}/1.webp`, `pedidosDueno/venta1/${r.id}/2.webp`]);
+	// Con 19 h encima (le quedan 5): no se vuelve a dar.
+	poner(`pedidosDueno/${r.id}`, { ...leer(`pedidosDueno/${r.id}`), cuando: new Date(S.reloj - 19 * 3600_000) });
+	const nueva = await llamar('venta1');
+	assert.notEqual(nueva.id, r.id);
+	assert.deepEqual(nueva.fotos, []);
+});
+await t('el panel: al cerrar la ventana sin enviar, sus fotos se borran; al abrir, vuelven las que ya tenía', async () => {
+	const { readFileSync } = await import('node:fs');
+	const f = readFileSync(new URL('../admin/js/pedido-dueno.js', import.meta.url), 'utf8');
+	assert.match(f, /alCerrar: \(\) => \{ for \(const f of form\.getData\(\)\.fotos \|\| \[\]\) deleteImage\(f\.path\); \}/);
+	assert.match(f, /onClose: \(\) => \{ if \(!enviado && alCerrar\) alCerrar\(\); \}/);
+	assert.match(f, /fotos: storage \? \(await Promise\.all\(ya\.map/);
+});
 await t('no: casa ajena, casa por noche, casa que no existe, sin sesión de socio', async () => {
 	assert.equal((await llamar('ajena')).status, 403);
 	assert.equal((await llamar('noche1')).status, 403);

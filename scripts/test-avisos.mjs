@@ -158,7 +158,7 @@ prueba('Pedidos del dueño: una sola puerta, fotos solo si hay, y el equipo (tam
 	// Sin fotos, sin la llave (las reglas publicadas antes no la conocen).
 	assert.match(pedido, /\.\.\.\(fotos\.length \? \{ fotos \} : \{\}\)/);
 	// La carpeta la aparta el servidor (/api/pedido-dueno) y la ✕ borra la foto (libera su número).
-	assert.match(pedido, /id = await apartarPedido\(p\.id\)/);
+	assert.match(pedido, /\(\{ id, fotos: ya \} = await apartarPedido\(p\.id\)\)/);
 	assert.match(pedido, /borrarAlQuitar: true,\s*folder: `pedidosDueno\/\$\{p\.id\}\/\$\{id\}`/);
 	// El equipo revisa la fecha y el precio antes de aplicar (la misma ventana del dueño) y solo aplica quien puede.
 	const cd = f('views/cambios-dueno.js');
