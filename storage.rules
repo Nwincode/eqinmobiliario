@@ -78,6 +78,19 @@ service firebase.storage {
           || firestore.get(/databases/(default)/documents/properties/$(casa)).data.get('agentId', '')
              == (usuario().get('agentId', '') == '' ? '(sin asesor)' : usuario().agentId));
     }
+    // Las fotos de un pedido del dueño sobre SU casa en venta o renta («Pedir un cambio», admin/js/pedido-dueno.js): en la
+    // carpeta de ese pedido, numeradas del 1 al 6, sin reemplazar ni borrar y solo antes de enviarlo (el pedido,
+    // comentariosPropietarios/{pedido}, todavía no existe; firestore.rules ata cada ruta del pedido a esta carpeta).
+    match /pedidosDueno/{casa}/{pedido}/{archivo} {
+      allow create: if resource == null && foto(10)
+        && archivo.matches('[1-6][.](webp|jpg|png)')
+        && pedido.matches('[A-Za-z0-9]{10,40}')
+        && conSesion() && usuario().rol == 'socio'
+        && firestore.exists(/databases/(default)/documents/properties/$(casa))
+        && firestore.get(/databases/(default)/documents/properties/$(casa)).data.get('operacion', '') != 'vacacional'
+        && firestore.get(/databases/(default)/documents/properties/$(casa)).data.get('propietarioId', '') == usuario().get('propietarioId', '-')
+        && !firestore.exists(/databases/(default)/documents/comentariosPropietarios/$(pedido));
+    }
     // El dueño de una casa por noche sube fotos nuevas de SU casa (admin/js/views/mis-casas.js → «La casa»). Solo
     // agrega: no reemplaza ni borra (el administrador puede deshacer su cambio y volver a las de antes).
     // Y el socio sube las de SU casa nueva antes de que exista (la ficha en «Mis propiedades» → «Agregar casa»): solo en la

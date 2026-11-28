@@ -6,7 +6,7 @@
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, orderBy, limit, serverTimestamp } from './firebase.js';
 import { h, showError } from './ui.js';
-import { armarAvisos, clavesPorRevisar, claveListo, hace } from './avisos-reglas.js';
+import { armarAvisos, clavesPorRevisar, claveListo, hace, pedidosPorAtender } from './avisos-reglas.js';
 import { bajoElPlan, conDatosDelChat, chatAbierto } from './reservas-calculo.js';
 import { enMs, primerNombre } from './formato.js';
 import { fotosOcultas } from './hilo.js';
@@ -37,6 +37,22 @@ async function atendidos(claves) {
 		try { if ((await getDoc(doc(db, 'avisosAtendidos', k))).exists()) hechos.add(k); } catch { puede = false; }
 	}));
 	return { hechos, puede };
+}
+
+// Los pedidos de los dueños que esperan (la misma lista que la campana): «Cambios de los dueños» los muestra enteros.
+// El administrador, todos; el asesor, los de sus dueños (las reglas no le dejan leer otros).
+export async function pedidosDeDuenos() {
+	const { session } = await import('./session.js');
+	const filtro = session.isAdmin ? [] : [where('agentId', '==', session.agentFiltro)];
+	const lista = pedidosPorAtender((await todos(filtro.length ? query(collection(db, 'comentariosPropietarios'), ...filtro) : collection(db, 'comentariosPropietarios')))
+		.map((c) => ({ ...c, fecha: ms(c.fecha) })));
+	const { hechos } = await atendidos(lista.map((c) => claveListo({ tipo: 'cambios', objeto: c.id })));
+	return lista.filter((c) => !hechos.has(claveListo({ tipo: 'cambios', objeto: c.id })));
+}
+// Atender un pedido («Listo», «Aplicar» o «Descartar»): su «Listo» en avisosAtendidos, como el de la campana.
+export async function atenderPedido(c) {
+	const { session } = await import('./session.js');
+	await setDoc(doc(db, 'avisosAtendidos', claveListo({ tipo: 'cambios', objeto: c.id })), { tipo: 'cambios', objeto: c.id, agentId: c.agentId || '', por: session.user.uid, fecha: serverTimestamp() });
 }
 
 async function cambiosDeDuenos() {
@@ -79,7 +95,7 @@ async function leerFuentes() {
 		admin ? seguro(todos(query(collection(db, 'leads'), where('reserva.codigo', '>', '')))) : [],
 		admin ? seguro(todos(collection(db, 'chats'))) : [],
 		admin ? seguro(loadReservas()) : [],
-		// Todas las respuestas del dueño: un pedido de cambios con una aprobación más nueva de la misma casa ya no avisa.
+		// Todas las respuestas del dueño (pedidosPorAtender: un pedido de cambios con una aprobación más nueva ya no avisa).
 		seguro(todos(filtroAsesor.length ? query(collection(db, 'comentariosPropietarios'), ...filtroAsesor) : collection(db, 'comentariosPropietarios'))),
 		// Leads de la web sin atender: el administrador, todos; el asesor, los suyos (las reglas no le dejan leer otros).
 		seguro(todos(query(collection(db, 'leads'), ...filtroAsesor, where('estado', '==', 'nuevo')))),
@@ -122,7 +138,8 @@ async function leerFuentes() {
 		fotos,
 		comprobantes: reservas.filter((r) => r.codigo && r.estado === 'confirmada' && r.comision?.comprobante && !r.comision.pagada).map((r) => ({
 			codigo: r.codigo, socio: dueno[r.propietarioId]?.nombre, casa: r.propertyTitulo, fecha: ms(r.updatedAt) || ahora })),
-		comentarios: comentarios.filter((c) => c.tipo === 'cambios' && !comentarios.some((x) => x.tipo === 'aprobado' && x.propiedadId === c.propiedadId && ms(x.fecha) > ms(c.fecha))).map((c) => ({ id: c.id, propietarioId: c.propietarioId, dueno: dueno[c.propietarioId]?.nombre, casa: casa[c.propiedadId]?.titulo, texto: c.texto, fecha: ms(c.fecha), agentId: c.agentId })),
+		comentarios: pedidosPorAtender(comentarios.map((c) => ({ ...c, fecha: ms(c.fecha) })), ahora).map((c) => ({ id: c.id, propietarioId: c.propietarioId, dueno: dueno[c.propietarioId]?.nombre, casa: casa[c.propiedadId]?.titulo,
+			texto: c.texto, fecha: c.fecha, agentId: c.agentId, tipo: c.tipo, operacion: casa[c.propiedadId]?.operacion })),
 		// Las solicitudes de reserva por noche no son leads del CRM: ya avisan como solicitud.
 		leads: nuevos.filter((l) => !V.esSolicitudReserva(l)).map((l) => ({ id: l.id, nombre: primerNombre(l.nombre), casa: l.propertyTitulo, creado: ms(l.createdAt) })),
 		cambiosDueno: cambiosDueno.map((c) => ({ id: c.id, nombre: c.nombre, casa: c.titulo, fecha: c.cuando || ahora, cuantos: (c.cambios || []).length, nueva: Boolean(c.nueva) })),

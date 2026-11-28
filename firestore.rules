@@ -706,15 +706,30 @@ service cloud.firestore {
         || (isStaff() && resource.data.agentId == myAgentId());
     }
 
-    // Respuesta del dueño al anuncio desde su panel: «aprobado» o «cambios» (con texto). Solo el dueño con sesión,
-    // de su propio resumen y de una casa suya. Solo crear: nadie los cambia ni los borra. Los lee solo el equipo.
+    // Respuesta del dueño al anuncio desde su panel: «aprobado», «cambios» (con texto y, si quiere, hasta 6 fotos) o
+    // «cierre» (ya se vendió o se rentó: la fecha y, si quiere, el precio final). Solo el dueño con sesión, de su propio
+    // resumen y de una casa suya (admin/js/pedido-dueno.js). Solo crear: nadie los cambia ni los borra; los lee solo el
+    // equipo (el administrador o el asesor del dueño) y los atiende con «Listo» (avisosAtendidos). El dueño no toca la
+    // casa: el estado y el precio final los pone el equipo al aplicarlo.
     function portalDelComentario() {
       return get(/databases/$(database)/documents/portalPropietarios/$(request.resource.data.token)).data;
+    }
+    // Una foto del pedido: en la carpeta de ESTE pedido (storage.rules pedidosDueno), numerada del 1 al 6.
+    function fotoDelPedido(f, id) {
+      return f is string && f.matches('pedidosDueno/' + request.resource.data.propiedadId + '/' + id + '/[1-6][.](webp|jpg|png)');
+    }
+    function fotosDelPedido(id) {
+      let f = request.resource.data.fotos;
+      return f is list && f.size() >= 1 && f.size() <= 6
+        && fotoDelPedido(f[0], id)
+        && (f.size() < 2 || fotoDelPedido(f[1], id)) && (f.size() < 3 || fotoDelPedido(f[2], id))
+        && (f.size() < 4 || fotoDelPedido(f[3], id)) && (f.size() < 5 || fotoDelPedido(f[4], id))
+        && (f.size() < 6 || fotoDelPedido(f[5], id));
     }
     match /comentariosPropietarios/{id} {
       allow create: if esSocio()
         && request.resource.data.keys().hasOnly([
-            'token', 'propietarioId', 'agentId', 'propiedadId', 'tipo', 'texto', 'fecha', 'origen', 'idioma'])
+            'token', 'propietarioId', 'agentId', 'propiedadId', 'tipo', 'texto', 'fecha', 'origen', 'idioma', 'fotos', 'fechaCierre', 'precioFinal'])
         && request.resource.data.keys().hasAll(['token', 'propietarioId', 'agentId', 'propiedadId', 'tipo', 'texto', 'fecha', 'origen'])
         && request.resource.data.propietarioId == userDoc().data.propietarioId
         && request.resource.data.token is string
@@ -725,11 +740,21 @@ service cloud.firestore {
         && portalDelComentario().agentId == request.resource.data.agentId
         && isNonEmptyString(request.resource.data.propiedadId, 60)
         && esSocioDe(get(/databases/$(database)/documents/properties/$(request.resource.data.propiedadId)).data)
-        && request.resource.data.tipo in ['aprobado', 'cambios']
+        && request.resource.data.tipo in ['aprobado', 'cambios', 'cierre']
         && request.resource.data.texto is string
         && request.resource.data.texto.size() <= 2000
-        // Pedir cambios exige texto; la aprobación puede ir sin texto.
-        && (request.resource.data.tipo == 'aprobado' || request.resource.data.texto.size() >= 1)
+        // Pedir cambios exige texto; la aprobación puede ir sin texto. Las fotos, solo en un pedido de cambios.
+        && (request.resource.data.tipo != 'cambios' || request.resource.data.texto.size() >= 1)
+        && (!('fotos' in request.resource.data) || (request.resource.data.tipo == 'cambios' && fotosDelPedido(id)))
+        // El cierre: la fecha (AAAA-MM-DD; que no sea futura lo revisa el panel y la mira el equipo antes de aplicarlo) y el
+        // precio final opcional, en la moneda de la casa (la pone el equipo al aplicarlo). Solo el cierre las lleva.
+        && (request.resource.data.tipo == 'cierre'
+          ? (request.resource.data.get('fechaCierre', '') is string
+            && request.resource.data.get('fechaCierre', '').matches('20[0-9]{2}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])')
+            && (!('precioFinal' in request.resource.data)
+              || ((request.resource.data.precioFinal is int || request.resource.data.precioFinal is float)
+                && request.resource.data.precioFinal > 0 && request.resource.data.precioFinal < 10000000000)))
+          : !request.resource.data.keys().hasAny(['fechaCierre', 'precioFinal']))
         && request.resource.data.origen == 'propietario'
         && (!('idioma' in request.resource.data) || request.resource.data.idioma in ['es', 'en'])
         && request.resource.data.fecha == request.time;

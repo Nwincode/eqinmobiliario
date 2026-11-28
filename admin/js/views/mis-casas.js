@@ -16,6 +16,7 @@ import { session, markPending, cargarMiResumen, misCasas, SALE_SOLA } from '../s
 import { prefijoMoneda, decimales, nNoches, dineroPorMoneda, nombreMes, moverMes, dineroCorto } from '../formato.js';
 import { filaCasa, publicUrl } from '../ficha-casa.js';
 import { resumenCasa, cabeceraCasa, estadoCasa } from '../resumen-casa.js';
+import { accionesPedido } from '../pedido-dueno.js';
 import { huespedesMaxDe } from '../cambios-casa.js';
 import { guardarPrivadoVacacional, socioLimpio } from '../privado-casa.js';
 import { anotar, bitacoraActiva } from '../bitacora-panel.js';
@@ -121,14 +122,16 @@ async function lista(container) {
 			filas]);
 }
 
-// Una casa en venta o renta: cómo va, solo lectura, desde su resumen.
-// «propia»: la casa dice ser suya; una enlazada solo desde su ficha se ve, pero su respuesta al anuncio la regla
-// no la deja (la casa tiene que decir que es suya), así que no se ofrece.
+// Una casa en venta o renta: cómo va, solo lectura, desde su resumen. En la fila del título, sus pedidos al equipo
+// («Pedir un cambio», «Ya se vendió» / «Ya se rentó»: admin/js/pedido-dueno.js); no agregan una fila.
+// «propia»: la casa dice ser suya; una enlazada solo desde su ficha se ve, pero su respuesta al anuncio y sus pedidos
+// la regla no los deja (la casa tiene que decir que es suya), así que no se ofrecen.
 async function enVenta(container, id, titulo, propia) {
 	const resumen = await cargarMiResumen();
 	const p = (resumen?.propiedades || []).find((x) => x.id === id);
 	mount(container,
-		h('div', { class: 'd-flex align-items-center gap-2 mb-3' }, volver('Volver a mis propiedades'), h('h1', { class: 'h4 mb-0' }, p?.titulo || titulo || 'Propiedad')),
+		h('div', { class: 'd-flex align-items-center gap-2 mb-3' }, volver('Volver a mis propiedades'), h('h1', { class: 'h4 mb-0 flex-grow-1', style: 'min-width: 0' }, p?.titulo || titulo || 'Propiedad'),
+			p && propia && resumen.id ? accionesPedido(resumen, p) : null),
 		p ? resumenCasa(resumen, p, { responder: propia }) : emptyState('Tu asesor todavía está preparando el resumen de esta propiedad. Vuelve a entrar en un rato.'));
 }
 

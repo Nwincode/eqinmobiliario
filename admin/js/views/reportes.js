@@ -1,9 +1,10 @@
 // Reportes del equipo: actividad, respuesta, visitas y cierres por asesor.
-import { db, doc, setDoc, serverTimestamp } from '../firebase.js';
+import { db, doc, getDoc, setDoc, serverTimestamp } from '../firebase.js';
 import { h, iconoBtn, statCard, pageHeader, mount, downloadCsv, toast, showError, tablaAdmin, tarjeta, barras } from '../ui.js';
 import { loadAgents } from '../session.js';
 import { loadLeads } from './leads.js';
-import { loadClientes, loadActividades, vencimiento, ms, ETAPAS, loadReglas, comisionDeNegocio } from '../crm.js';
+import { loadClientes, loadActividades, vencimiento, ms, ETAPAS, loadReglas, comisionDeNegocio, loadPropiedades, loadAcuerdos } from '../crm.js';
+import { estaCerrada, conPrecioFinal, cierresSinCliente } from '../cierre-casa.js';
 import { sumarPorMoneda, dineroPorMoneda, esPorcentaje } from '../formato.js';
 
 // Q y US$ no se suman: un total por moneda («US$ 250,000.00 · Q 1,500,000.00»).
@@ -19,8 +20,21 @@ function horas(msx) {
 // Lo que pide atención va en rojo junto a su total, no en otra columna.
 const alerta = (n, texto) => (n ? h('span', { class: 'text-danger fw-semibold' }, ` · ${n} ${texto}`) : null);
 
+// Las casas vendidas o rentadas con su cierre (privado/cierre: fecha y precio final; admin/js/cierre-casa.js) y su
+// acuerdo (la comisión de esa casa). Una que no se pudo leer no cuenta.
+async function casasConCierre() {
+	const cerradas = (await loadPropiedades()).filter(estaCerrada);
+	const conCierre = (await Promise.all(cerradas.map(async (c) => {
+		const cierre = await getDoc(doc(db, 'properties', c.id, 'privado', 'cierre')).then((x) => (x.exists() ? x.data() : null), () => null);
+		return cierre ? { ...c, cierre } : null;
+	}))).filter(Boolean);
+	return { casas: conCierre, acuerdos: await loadAcuerdos(conCierre) };
+}
+
 export async function render(container) {
-	const [agentes, leads, clientes, actividades, reglas] = await Promise.all([loadAgents(), loadLeads(), loadClientes(), loadActividades(), loadReglas()]);
+	const [agentes, leads, clientes, actividades, reglas, cerradas] = await Promise.all([loadAgents(), loadLeads(), loadClientes(), loadActividades(), loadReglas(),
+		casasConCierre().catch((err) => { console.warn('Reportes: casas cerradas', err); return { casas: [], acuerdos: {} }; })]);
+	const enCierre = clientes.filter((c) => c.etapa === 'cierre');
 	let dias = 30;
 	const cuerpo = h('div');
 	const selector = h('select', { class: 'form-select form-select-sm w-auto', 'aria-label': 'Periodo' },
@@ -43,9 +57,13 @@ export async function render(container) {
 			}).filter((t) => t !== null);
 			// Un cierre cuenta en el periodo en que pasó a «Cierre» (etapaFecha), no en el de su última edición. Los de
 			// antes de guardar esa fecha usan la última edición (no hay otra).
-			const cierres = misClientes.filter((c) => c.etapa === 'cierre' && ms(c.etapaFecha || c.updatedAt) >= desde);
-			const montoCerrado = sumarPorMoneda(cierres, (c) => c.montoEstimado);
-			const comision = sumarPorMoneda(cierres, (c) => comisionDeNegocio(c, reglas));
+			// Con el precio final de la casa cerrada si lo hay (cierre-casa.js); y las casas de este asesor que se cerraron en el
+			// periodo sin un cliente en «Cierre» que las tenga (p. ej. la que avisó el dueño), una vez cada una.
+			const cierres = conPrecioFinal(misClientes.filter((c) => c.etapa === 'cierre' && ms(c.etapaFecha || c.updatedAt) >= desde), cerradas.casas);
+			const casasCerradas = cierresSinCliente(cerradas.casas, enCierre, { desde, acuerdos: cerradas.acuerdos, reglas }).filter((n) => n.agentId === a.id);
+			const negocios = [...cierres.map((c) => ({ moneda: c.moneda, monto: c.montoEstimado, comision: comisionDeNegocio(c, reglas) })), ...casasCerradas];
+			const montoCerrado = sumarPorMoneda(negocios, (n) => n.monto);
+			const comision = sumarPorMoneda(negocios, (n) => n.comision);
 			const enProceso = misClientes.filter((c) => ['visita', 'oferta'].includes(c.etapa));
 			return {
 				...a,
@@ -57,7 +75,7 @@ export async function render(container) {
 				vencidas: misActs.filter((x) => vencimiento(x) === 'vencida').length,
 				enProceso: enProceso.length,
 				pipeline: sumarPorMoneda(enProceso, (c) => c.montoEstimado),
-				cierres: cierres.length,
+				cierres: negocios.length,
 				montoCerrado,
 				comision,
 				parteAsesor: Object.fromEntries(Object.entries(comision).map(([m, n]) => [m, n * reglas.parteAsesorPct / 100]))
@@ -88,7 +106,7 @@ export async function render(container) {
 			].map(([i, l, v]) => h('div', { class: 'col-6 col-lg-3' }, statCard(i, l, v)))),
 			tarjeta('icon-users', 'Por asesor', { sinCuerpo: true, cls: 'overflow-hidden' }, tablaAsesores),
 			tarjeta('icon-filter', 'Embudo actual de clientes', barras(embudo)),
-			h('p', { class: 'small text-muted mt-3' }, 'Respuesta: mediana del tiempo entre que llega el lead y la primera llamada, mensaje o visita registrada con ese cliente. Monto y comisión salen de los clientes en etapa "Cierre"; si el cliente no tiene comisión propia se aplica la regla general.'));
+			h('p', { class: 'small text-muted mt-3' }, 'Respuesta: mediana del tiempo entre que llega el lead y la primera llamada, mensaje o visita registrada con ese cliente. Monto y comisión salen de los clientes en etapa "Cierre" (con el precio final de la casa, si se anotó) y de las casas vendidas o rentadas sin cliente en "Cierre"; sin comisión propia se aplica la regla general.'));
 		cuerpo._filas = filas;
 	};
 	selector.addEventListener('change', () => { dias = Number(selector.value); calcular(); });

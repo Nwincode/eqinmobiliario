@@ -21,6 +21,15 @@ export function hace(desde, ahora = Date.now()) {
 // La foto: `fin` es el mensaje (otra foto nueva vuelve a avisar).
 export const claveListo = ({ tipo, objeto, fin }) => (tipo === 'exclusiva' || tipo === 'foto' ? `${tipo}_${objeto}_${fin}` : `${tipo}_${objeto}`);
 
+// Los pedidos de los dueños que esperan al equipo (la campana y «Cambios de los dueños», la misma lista): los de los
+// últimos DIAS_COMENTARIO días; un pedido de cambios con una aprobación más nueva de la misma casa ya no espera; un
+// cierre («ya se vendió») siempre espera hasta que se atienda. comentarios: los docs de comentariosPropietarios con
+// `fecha` en ms. (Los ya atendidos los quita quien llama, con avisosAtendidos.)
+export function pedidosPorAtender(comentarios = [], ahora = Date.now()) {
+	return comentarios.filter((c) => c.fecha && ahora - c.fecha <= DIAS_COMENTARIO * DIA
+		&& (c.tipo === 'cierre' || (c.tipo === 'cambios' && !comentarios.some((x) => x.tipo === 'aprobado' && x.propiedadId === c.propiedadId && x.fecha > c.fecha))));
+}
+
 const recorta = (t, n) => { const s = String(t || '').replace(/\s+/g, ' ').trim(); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
 const enlaceSolicitud = (codigo) => `#/solicitudes/${encodeURIComponent(codigo)}`;
 
@@ -37,7 +46,7 @@ function textoExclusiva(dias) {
 //  fotos:       [{ leadId, codigo, nombre, casa, mensaje, fecha, marca, n }] fotos del cliente ocultas al socio (la más nueva)
 //  comprobantes:[{ codigo, socio, casa, fecha }]                            pago a EQ subido, sin marcar pagado
 //  comisiones:  [{ codigo, casa, nivel, vence }]                            del socio: su pago a EQ vencido, sin comprobante
-//  comentarios: [{ id, propietarioId, dueno, casa, texto, fecha, agentId }] tipo «cambios»
+//  comentarios: [{ id, propietarioId, dueno, casa, texto, fecha, agentId, tipo, operacion }] pedidos por atender (pedidosPorAtender): «cambios» o «cierre»
 //  exclusivas:  [{ casaId, casa, dueno, fin, dias, agentId }]
 //  leads:       [{ id, nombre, casa, creado }]                              de la web, sin atender (estado «nuevo»)
 //  atendidos:   Set de claves con «Listo».
@@ -100,9 +109,12 @@ export function armarAvisos({ solicitudes = [], mensajes = [], fotos = [], compr
 		const listo = { tipo: 'cambios', objeto: c.id, agentId: c.agentId || '' };
 		const clave = claveListo(listo);
 		if (atendidos.has(clave)) continue;
+		// Se atiende en «Cambios de los dueños» (con su ficha, WhatsApp, «Aplicar» o «Listo»).
+		const cierre = c.tipo === 'cierre';
 		out.push({
-			clave, tipo: 'cambios', icono: 'icon-pencil', href: `#/propietarios/${encodeURIComponent(c.propietarioId)}`, fecha: c.fecha, urgente: false, listo,
-			titulo: `${c.dueno || 'Un dueño'} pide cambios`, detalle: [c.casa, c.texto ? `«${recorta(c.texto, 80)}»` : ''].filter(Boolean).join(': ')
+			clave, tipo: 'cambios', icono: cierre ? 'icon-flag-checkered' : 'icon-pencil', href: `#/cambios-dueno/${encodeURIComponent(c.id)}`, fecha: c.fecha, urgente: false, listo,
+			titulo: cierre ? `${c.dueno || 'Un dueño'} avisa que ${c.operacion === 'renta' ? 'ya se rentó' : 'ya se vendió'}` : `${c.dueno || 'Un dueño'} pide cambios`,
+			detalle: [c.casa, !cierre && c.texto ? `«${recorta(c.texto, 80)}»` : ''].filter(Boolean).join(': ')
 		});
 	}
 	for (const e of exclusivas) {

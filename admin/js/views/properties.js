@@ -215,7 +215,7 @@ export async function eliminarPropiedad(p) {
 		.then((s) => s.docs.map((d) => d.ref), (err) => { console.warn(`No se pudo leer ${c} de la casa`, err); return []; })))).flat();
 	const lote = writeBatch(db);
 	contactos.slice(sobran.length).forEach((ref) => lote.delete(ref));
-	for (const privado of ['socio', 'llegada', 'acuerdo', 'calendario', 'icalLeido']) lote.delete(doc(db, 'properties', p.id, 'privado', privado));
+	for (const privado of ['socio', 'llegada', 'acuerdo', 'calendario', 'icalLeido', 'cierre']) lote.delete(doc(db, 'properties', p.id, 'privado', privado));
 	apartados.forEach((ref) => lote.delete(ref));
 	lote.delete(doc(db, 'properties', p.id));
 	await lote.commit();
@@ -357,8 +357,9 @@ function autor() {
 }
 export const entradaHistorial = (estado) => entradaEstado(estado, autor());
 
-// Campos que registran un cambio de estado desde la lista: fecha y entrada en el historial.
-function cambioDeEstado(estado) {
+// Campos que registran un cambio de estado desde la lista (y «Aplicar» de un cierre en Cambios de los dueños): fecha y
+// entrada en el historial.
+export function cambioDeEstado(estado) {
 	return { estado, estadoFecha: serverTimestamp(), historialEstado: arrayUnion(entradaHistorial(estado)) };
 }
 

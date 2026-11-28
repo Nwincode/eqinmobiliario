@@ -46,19 +46,20 @@ export function procesarImagen(file, maxSize, quality, { marca = false } = {}) {
 // `numerada`: el archivo se llama 1 a 40 (el primer número libre de la carpeta): la carpeta de la casa nueva del socio
 // (storage.rules no le deja más de 40 ni otro nombre).
 export const MAX_NUMERADAS = 40;
-async function numeroLibre(folder, ext) {
-	for (let n = 1; n <= MAX_NUMERADAS; n++) {
+async function numeroLibre(folder, ext, maximo = MAX_NUMERADAS) {
+	for (let n = 1; n <= maximo; n++) {
 		const path = `${folder}/${n}.${ext}`;
 		try { await getMetadata(ref(storage, path)); } catch (err) { if (err?.code === 'storage/object-not-found') return path; throw err; }
 	}
-	throw new Error(`Ya subiste ${MAX_NUMERADAS} fotos a esta casa: quita las que no vayan y publica con esas.`);
+	throw new Error(maximo === MAX_NUMERADAS ? `Ya subiste ${MAX_NUMERADAS} fotos a esta casa: quita las que no vayan y publica con esas.` : `Ya subiste ${maximo} fotos: es el máximo.`);
 }
-export async function uploadImage(file, folder, procesada, opciones, { sinEnlace = false, numerada = false } = {}) {
+// numerada: nombre 1, 2, 3… en su carpeta (las reglas de Storage lo exigen donde sube el dueño); maximo: hasta cuántas.
+export async function uploadImage(file, folder, procesada, opciones, { sinEnlace = false, numerada = false, maximo = MAX_NUMERADAS } = {}) {
 	if (!storage) throw new Error('No se pueden subir imágenes: al sitio le falta la configuración de las fotos de Firebase. Avísale a quien lo programa.');
 	const { blob, ancho, alto, hash, marca } = procesada || await procesarImagen(file, undefined, undefined, opciones);
 	const ext = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/png' ? 'png' : 'jpg';
 	const base = (file.name || 'foto').replace(/\.[^.]+$/, '').normalize('NFD').replace(/[^\w-]+/g, '-').slice(0, 40);
-	const path = numerada ? await numeroLibre(folder, ext) : `${folder}/${Date.now()}-${base}.${ext}`;
+	const path = numerada ? await numeroLibre(folder, ext, maximo) : `${folder}/${Date.now()}-${base}.${ext}`;
 	const r = ref(storage, path);
 	await uploadBytes(r, blob, { contentType: blob.type, cacheControl: 'public, max-age=31536000' });
 	return { url: sinEnlace ? '' : await getDownloadURL(r), path, ancho, alto, hash, ...(marca ? { marca: true } : {}) };
@@ -426,10 +427,20 @@ export function renderForm(schema, data, options = {}) {
 			}
 
 			case 'images': {
-				const grid = h('div', { class: 'images-grid' });
+				// simple: fotos que acompañan un pedido (p. ej. «Pedir un cambio» del dueño): sin portada, descripción ni flechas;
+				// solo ✕ quitar y la casilla «+ cámara» al final, del tamaño de una foto. max: hasta cuántas.
+				const grid = h('div', { class: `images-grid${field.simple ? ' images-simple' : ''}` });
 				const status = h('span', { class: 'small text-muted' });
 				const draw = () => {
 					const arr = get() || [];
+					if (field.simple) {
+						grid.replaceChildren(...arr.map((img, i) => h('div', { class: 'images-grid-item' }, h('img', { src: img.url, alt: '' }),
+							h('button', { type: 'button', class: 'images-quitar', 'aria-label': `Quitar la foto ${i + 1}`, title: 'Quitar foto', onclick: () => { arr.splice(i, 1); set(arr); draw(); } },
+								h('span', { class: 'icon-close', 'aria-hidden': 'true' })))),
+						field.max && arr.length >= field.max ? null : h('button', { type: 'button', class: 'images-grid-item images-agregar', 'aria-label': 'Agregar fotos', title: 'Agregar fotos', onclick: () => fi.click() },
+							h('span', { class: 'icon-plus', 'aria-hidden': 'true' }), h('span', { class: 'icon-camera', 'aria-hidden': 'true' })));
+						return;
+					}
 					grid.replaceChildren(...arr.map((img, i) => {
 						const alt = h('input', { class: 'form-control form-control-sm', placeholder: 'Descripción (SEO)', value: img.alt || '' });
 						alt.addEventListener('input', () => { img.alt = alt.value; });
@@ -497,9 +508,11 @@ export function renderForm(schema, data, options = {}) {
 				const fi = fileInput(true, async (files) => {
 					const arr = get() || [];
 					for (let n = 0; n < files.length; n++) {
+						if (field.max && arr.length >= field.max) { toast(`Hasta ${field.max} fotos.`, 'warning'); break; }
 						status.textContent = `Subiendo ${n + 1} de ${files.length}…`;
 						try {
-							arr.push({ ...(await uploadImage(files[n], field.folder || folder, null, { marca: Boolean(field.marcaFija) || !!marcaChk?.checked }, { numerada: Boolean(field.numeradas) })), alt: '' });
+							arr.push({ ...(await uploadImage(files[n], typeof field.folder === 'function' ? field.folder() : field.folder || folder, null, { marca: Boolean(field.marcaFija) || !!marcaChk?.checked },
+								{ numerada: Boolean(field.numeradas), ...(field.maxSubidas ? { maximo: field.maxSubidas } : {}) })), alt: '' });
 							set(arr);
 							draw();
 						} catch (err) {
@@ -510,7 +523,7 @@ export function renderForm(schema, data, options = {}) {
 					status.textContent = '';
 				});
 				draw();
-				control = h('div', {}, grid,
+				control = field.simple ? h('div', {}, grid, status, fi) : h('div', {}, grid,
 					h('div', { class: 'd-flex align-items-center flex-wrap gap-2 mt-2' },
 						h('button', { type: 'button', class: 'btn btn-outline-primary', onclick: () => fi.click() }, '+ Agregar fotos'),
 						marcaChk ? h('div', { class: 'form-check mb-0 ms-1' }, marcaChk,

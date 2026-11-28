@@ -20,6 +20,7 @@ import { anotar, bitacoraActiva, verCambios } from '../bitacora-panel.js';
 import { enviarEstadoDeCuenta } from '../estado-cuenta-enviar.js';
 import { fotoPropietario } from '../bitacora.js';
 import { BANCOS, TIPOS_CUENTA, MONEDAS_CUENTA, pagoPorGuardar } from '../datos-pago.js';
+import { fechaCorta } from '../formato.js';
 
 // Las casas de esta ficha quedan suyas y las que salieron de ella quedan sin dueño (si eran suyas), con la única
 // forma de enlazar (asignarDueno: la casa manda; la lista `propiedades` de cada persona y su `porNoche` los pone al día
@@ -606,7 +607,7 @@ function seccionPortal(prop, propiedades, ficha) {
 			listaCom.dataset.visto = '1';
 			listaCom.replaceChildren(...(lista.length ? lista.map((c) => h('div', { class: 'list-group-item' },
 				h('div', { class: 'small text-muted d-flex flex-wrap gap-2 align-items-center' },
-					c.tipo === 'aprobado' ? badge('Aprobó el anuncio', 'success') : badge('Pidió cambios', 'warning'),
+					c.tipo === 'aprobado' ? badge('Aprobó el anuncio', 'success') : c.tipo === 'cierre' ? badge(`Avisó el cierre: ${fechaCorta(c.fechaCierre)}`, 'info') : badge(c.fotos?.length ? `Pidió cambios (${c.fotos.length} fotos)` : 'Pidió cambios', 'warning'),
 					`${formatDate(c.fecha)}${c.propiedadId && misProps.length > 1 ? ` · ${titulo[c.propiedadId] || ''}` : ''}`),
 				c.texto ? h('div', { class: 'mt-1', style: 'white-space: pre-line' }, c.texto) : null))
 				: [h('div', { class: 'list-group-item text-muted small' }, `El ${quien} todavía no ha respondido sobre el anuncio.`)]));

@@ -741,6 +741,12 @@ a.stat-card:hover {
 	object-fit: cover;
 	border-radius: 6px;
 }
+/* «images» sencilla (fotos de un pedido de cambio): casillas más chicas, ✕ quitar (44 px de toque) y «+ cámara» como una
+   casilla más, del mismo tamaño que las fotos. */
+.images-grid.images-simple { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); }
+.images-quitar { position: absolute; top: 12px; right: 12px; width: 24px; height: 24px; display: inline-grid; place-items: center; padding: 0; border: 0; border-radius: 12px; background: var(--eq-white); color: var(--adm-text); font-size: 10px; }
+.images-quitar::after { content: ""; position: absolute; inset: -10px; }
+.images-agregar { display: flex; align-items: center; justify-content: center; gap: 4px; color: var(--adm-primary); font-size: 20px; min-height: 44px; cursor: pointer; }
 .images-cover {
 	position: absolute;
 	top: 14px;

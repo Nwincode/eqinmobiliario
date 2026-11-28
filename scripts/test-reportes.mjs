@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { sumarPorMoneda, dineroPorMoneda, esPorcentaje, idClientePorContacto, telefonoWa } from '../admin/js/formato.js';
 import { REGLAS_POR_DEFECTO, comisionDe, montoComision } from '../admin/js/acuerdo.js';
+import { conPrecioFinal, cierresSinCliente, cierreDePedido, estadoDeCierre } from '../admin/js/cierre-casa.js';
 
 let ok = 0;
 const t = (nombre, fn) => { fn(); ok++; console.log('✓', nombre); };
@@ -58,6 +59,54 @@ t('el cliente nuevo de un lead lleva un id de su contacto: dos leads de la misma
 	assert.doesNotMatch(idClientePorContacto('', 'a/b@c.com'), /\//);
 	assert.equal(idClientePorContacto('', ''), '');
 	assert.match(fuente('crm.js'), /idClientePorContacto\(tel, mail\)/);
+});
+
+// El precio final de una casa vendida o rentada (properties/{id}/privado/cierre, admin/js/cierre-casa.js).
+const cerradas = [
+	{ id: 'v1', operacion: 'venta', moneda: 'USD', precio: 285000, agentId: 'a1', cierre: { fechaCierre: '2026-11-26', precioFinal: 270000, moneda: 'USD', operacion: 'venta' } },
+	{ id: 'v2', operacion: 'venta', moneda: 'GTQ', precio: 1200000, agentId: 'a2', cierre: { fechaCierre: '2026-11-20', moneda: 'GTQ', operacion: 'venta' } },
+	{ id: 'r1', operacion: 'renta', moneda: 'USD', precio: 1500, agentId: 'a1', cierre: { fechaCierre: '2026-11-25', precioFinal: 1250, moneda: 'USD', operacion: 'renta' } },
+	{ id: 'vieja', operacion: 'venta', moneda: 'USD', precio: 99000, agentId: 'a1', cierre: { fechaCierre: '2025-01-10', precioFinal: 95000, moneda: 'USD' } }];
+const DESDE = Date.parse('2026-11-01T00:00:00-06:00');
+
+t('El cliente en «Cierre» de una casa con precio final cuenta ese precio, en la moneda de la casa', () => {
+	const [ana, luis] = conPrecioFinal([
+		{ nombre: 'Ana', etapa: 'cierre', moneda: 'GTQ', montoEstimado: 2000000, interes: ['v1', 'x'] },
+		{ nombre: 'Luis', etapa: 'cierre', moneda: 'USD', montoEstimado: 300000, interes: ['v1', 'r1'] }], cerradas);
+	assert.equal(ana.montoEstimado, 270000);
+	assert.equal(ana.moneda, 'USD');
+	// Con dos casas cerradas en su interés no se adivina cuál: queda su monto.
+	assert.equal(luis.montoEstimado, 300000);
+	assert.equal(dineroPorMoneda(sumarPorMoneda([ana], (c) => c.montoEstimado)), 'US$ 270,000.00');
+});
+t('La casa cerrada sin cliente en «Cierre» cuenta una vez, para su asesor, con su precio final y su comisión acordada', () => {
+	const conCliente = [{ etapa: 'cierre', interes: ['v1'] }];
+	const n = cierresSinCliente(cerradas, conCliente, { desde: DESDE, acuerdos: { r1: { comisionRentaMeses: 2 } }, reglas: REGLAS_POR_DEFECTO });
+	// v1 ya la cuenta su cliente; la vieja es de otro periodo.
+	assert.deepEqual(n.map((x) => x.casaId), ['v2', 'r1']);
+	const [v2, r1] = n;
+	// Sin precio final: el precio publicado, en su moneda, y la regla general (5 %).
+	assert.deepEqual([v2.agentId, v2.monto, v2.moneda, v2.comision], ['a2', 1200000, 'GTQ', 60000]);
+	// Renta: la renta final al mes por los meses acordados en esa casa.
+	assert.deepEqual([r1.agentId, r1.monto, r1.comision], ['a1', 1250, 2500]);
+});
+t('Aplicar el cierre: estado, moneda y operación salen de la casa, no del pedido', () => {
+	assert.equal(estadoDeCierre('renta'), 'rentada');
+	assert.equal(estadoDeCierre('venta'), 'vendida');
+	assert.deepEqual(cierreDePedido({ id: 'p9', fechaCierre: '2026-11-26', precioFinal: 270000, moneda: 'GTQ' }, { moneda: 'USD', operacion: 'venta' }),
+		{ fechaCierre: '2026-11-26', precioFinal: 270000, moneda: 'USD', operacion: 'venta', pedidoId: 'p9' });
+	assert.deepEqual(cierreDePedido({ fechaCierre: '2026-11-26' }, { operacion: 'renta' }), { fechaCierre: '2026-11-26', moneda: 'USD', operacion: 'renta' });
+});
+t('Reportes usa el precio final y las casas cerradas; el precio final nunca va a la casa pública', () => {
+	const r = fuente('views/reportes.js');
+	assert.match(r, /conPrecioFinal\(misClientes\.filter/);
+	assert.match(r, /cierresSinCliente\(cerradas\.casas, enCierre/);
+	assert.match(r, /doc\(db, 'properties', c\.id, 'privado', 'cierre'\)/);
+	const cd = fuente('views/cambios-dueno.js');
+	assert.match(cd, /doc\(db, 'properties', casa\.id, 'privado', 'cierre'\)/);
+	assert.doesNotMatch(cd, /lote\.update\(refCasa, \{[^}]*precioFinal/);
+	// El build y los feeds no leen privado/cierre ni conocen el precio final.
+	for (const f of ['../../scripts/build.mjs', '../../scripts/lib/templates.mjs', '../../scripts/lib/util.mjs']) assert.doesNotMatch(fuente(f), /precioFinal|privado\/cierre|'cierre'\)/, f);
 });
 
 console.log(`\n${ok} pruebas de reportes pasan.`);

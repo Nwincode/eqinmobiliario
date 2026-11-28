@@ -1,9 +1,10 @@
 // Panel del dueño (propietario o colaborador): cómo va UNA casa en venta o renta, solo lectura. Sale del resumen
 // que arma el equipo (admin/js/portal.js → portalPropietarios): sin nombres, teléfonos ni correos de clientes, sin
 // el acuerdo (solo la fecha de la exclusiva de esta casa) y sin notas internas. Lo único que escribe el dueño es su
-// respuesta al anuncio (comentariosPropietarios), que el asesor ve en la ficha de la persona.
+// respuesta al anuncio (comentariosPropietarios: «Sí, de acuerdo» aquí; sus pedidos, con admin/js/pedido-dueno.js), que
+// el asesor ve en la ficha de la persona y en «Cambios de los dueños».
 import { db, addDoc, collection, serverTimestamp } from './firebase.js';
-import { h, toast, showError, badge, statCard, iconoBtn, tablaAdmin, tarjeta, formatPrice } from './ui.js';
+import { h, showError, badge, statCard, iconoBtn, tablaAdmin, tarjeta, formatPrice } from './ui.js';
 import { ESTADOS_PROPIEDAD, OPERACIONES } from './estados.js';
 import { whatsappUrl, fechaCorta, fechaLarga } from './formato.js';
 import { estadoExclusiva, datosDe } from './ficha-casa.js';
@@ -29,42 +30,25 @@ function textoAuto(e, p) {
 		visita: n > 1 ? `Se realizaron ${n} visitas` : 'Se realizó una visita', oferta: n > 1 ? `Se recibieron ${n} ofertas` : 'Se recibió una oferta' }[e.auto] || '';
 }
 
-// Respuesta al anuncio: «Sí, de acuerdo» o «Quiero cambios» (con texto). Una por visita a la pantalla.
+// Respuesta al anuncio: «Sí, de acuerdo». Lo que quiere cambiar lo pide con «Pedir un cambio», en la fila del título
+// (admin/js/pedido-dueno.js: la única puerta, con texto y fotos). Una por visita a la pantalla.
 function respuesta(resumen, p) {
-	const caja = h('div', { class: 'd-grid gap-2' });
-	const texto = h('textarea', { class: 'form-control', id: `cambios-${p.id}`, rows: 3, maxlength: 2000 });
-	const enviar = async (tipo, txt, btn) => {
+	const caja = h('div', {});
+	const enviar = async (btn) => {
 		btn.disabled = true;
 		try {
 			await addDoc(collection(db, 'comentariosPropietarios'), {
 				token: resumen.id, propietarioId: resumen.propietarioId, agentId: resumen.agentId || '', propiedadId: p.id,
-				tipo, texto: txt, fecha: serverTimestamp(), origen: 'propietario', idioma: 'es'
+				tipo: 'aprobado', texto: '', fecha: serverTimestamp(), origen: 'propietario', idioma: 'es'
 			});
-			caja.replaceChildren(h('div', { class: 'alert alert-success small mb-0', role: 'status' }, ic('icon-check-circle'),
-				tipo === 'aprobado' ? 'Gracias: tu asesor ya sabe que estás de acuerdo con el anuncio.' : 'Gracias: tu asesor recibió lo que quieres cambiar.'));
+			caja.replaceChildren(h('div', { class: 'alert alert-success small mb-0', role: 'status' }, ic('icon-check-circle'), 'Gracias: tu asesor ya sabe que estás de acuerdo con el anuncio.'));
 		} catch (err) { showError(err); btn.disabled = false; }
 	};
-	// (Sin «d-grid»: su display gana a «hidden» y la caja se vería abierta.)
-	const form = h('form', { hidden: true, onsubmit: (e) => {
-		e.preventDefault();
-		const t = texto.value.trim();
-		if (!t) { texto.focus(); return toast('Escribe qué quieres cambiar.', 'warning'); }
-		enviar('cambios', t, e.submitter);
-	} },
-	h('label', { class: 'form-label small', for: texto.id }, '¿Qué te gustaría cambiar? (el precio, una foto, un dato…)'), texto,
-	h('button', { class: 'btn btn-primary btn-sm mt-2', type: 'submit' }, ic('icon-paper-plane-o'), 'Enviar'));
-	const cambios = h('button', { type: 'button', class: 'btn btn-outline-primary btn-sm', 'aria-expanded': 'false', onclick: (e) => {
-		form.hidden = !form.hidden;
-		e.currentTarget.setAttribute('aria-expanded', String(!form.hidden));
-		if (!form.hidden) texto.focus();
-	} }, ic('icon-pencil'), 'Quiero cambios');
 	caja.append(h('div', { class: 'd-flex flex-wrap align-items-center gap-2' },
 		h('span', { class: 'small fw-semibold me-auto' }, '¿Estás de acuerdo con cómo se anuncia?'),
-		h('button', { type: 'button', class: 'btn btn-primary btn-sm', onclick: (e) => enviar('aprobado', '', e.currentTarget) }, ic('icon-check-circle'), 'Sí, de acuerdo'),
-		cambios), form);
+		h('button', { type: 'button', class: 'btn btn-primary btn-sm', onclick: (e) => enviar(e.currentTarget) }, ic('icon-check-circle'), 'Sí, de acuerdo')));
 	return caja;
 }
-
 
 // Estado de la casa (Disponible, Vendida…), con el color de su visibilidad en el sitio.
 export function estadoCasa(p) {
