@@ -187,7 +187,7 @@ export const NORMALES = (() => [
 	// El precio de una casa en el título, la descripción o una amenidad: con su moneda y en miles exactos, aunque tenga 8
 	// cifras que empiezan de 2 a 7 (Q20M a Q79.9M).
 	'Precio Q25,000,000', 'Precio Q 25,000,000.00 negociable', 'Precio: Q.25,000,000', 'Precio $25,000,000', 'US$ 22,500,000', 'USD 30,000,000',
-	'Valor 40,000,000 quetzales', '25,000,000 dólares', 'Q25.000.000', 'Q 2,500,000.00', 'Casa de 4 habitaciones en Q50,000,000, 600 v2 de terreno'
+	'Valor 40,000,000 quetzales', '25,000,000 dólares', 'Q 2,500,000.00', 'Casa de 4 habitaciones en Q50,000,000, 600 v2 de terreno'
 ].map(alAnio))();
 
 export const EVASIONES = (() => [
@@ -290,7 +290,10 @@ export const EVASIONES = (() => [
 	'tiktok villalago', 'telegram juanlago', 'mi ig juanlago.', 'mi cuenta de facebook es juanlago', 'mi ig es villalago', 'mi ig es villa lago gt', 'telegrаm villalago',
 	'cincuenta y cinco cincuenta y cinco cuatro mil ochocientos cuarenta y dos', 'cincuenta y cinco cincuenta y cinco mil ciento veintidós', '5555 cuatro mil ochocientos cuarenta y dos',
 	'mi número es cinco cinco cinco cinco, mil ciento veintidós', 'cinco mil quinientos cincuenta y cinco mil doscientos treinta y cuatro',
-	'cinco mil quinientos cincuenta y cinco, mil doscientos treinta y cuatro', 'five five five five zero five five five', 'fifty five fifty five four thousand eight hundred forty two'
+	'cinco mil quinientos cincuenta y cinco, mil doscientos treinta y cuatro', 'five five five five zero five five five', 'fifty five fifty five four thousand eight hundred forty two',
+	// Un teléfono vestido de precio (sin miles exactos, o con más cifras que un precio) o junto a un precio.
+	'Q55,551,234', '$55,551,234', 'Precio Q25,000,000 y mi cel 5555 1234', '5555 Q25,000,000 1234', 'Q25,000,000 55551234', 'Precio Q25,000,000, 5555-1234',
+	'Q5,055,551,000', 'US$ 1,305,555,000'
 ].map(alAnio))();
 
 // Se bloquea aunque podría ser normal.
@@ -305,7 +308,9 @@ export const BLOQUEADAS_A_PROPOSITO = (() => [
 	'La referencia de mi pago es 20241234, ya transferí', 'Transfer ref 778812345 done',
 	'factura a nombre de Ana, NIT 3456789-1', 'deposité en la cuenta 3012345678', 'cuenta monetaria 01-2345678-9', 'cuenta 123-456789-0',
 	'el depósito fue de Q3,250.00 en Banco Industrial, boleta 70012345', 'Transfer done, confirmation #4512-7788', 'Zelle confirmation 25563412',
-	'boleta 70012345'
+	'boleta 70012345',
+	// Un precio de 8 cifras de 2 a 7 sin su moneda o con puntos de miles: sin la forma de precio se lee como teléfono.
+	'Terreno de 25,000,000 m2', 'Q25.000.000'
 ].map(alAnio))();
 
 // Límites aceptados (pasan; no se prueban): sin cifras ni forma de usuario, no hay de dónde agarrarse sin bloquear frases

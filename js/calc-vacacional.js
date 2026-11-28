@@ -654,11 +654,11 @@
 		// de Guatemala (8 cifras que empiezan de 2 a 7) o uno internacional (10 o más), lleve lo que lleve delante («ref»,
 		// «vuelo», «Q», «No.»…). «Son Q2345 y Q5678» o «boleta 70012345» se bloquean: preferible a dejar pasar un teléfono
 		// (el aviso le dice que suba el comprobante en foto). Una «x» suelta entre números no corta un teléfono.
-		// Antes, un precio: con su moneda delante (Q, Q., $, US$, USD, GTQ) o detrás (quetzales, dólares) y separado en miles
-		// que terminan en mil exactos («Q25,000,000», «US$ 22,500,000.00», «40.000.000 quetzales»). Sin «,000» al final no
-		// es un precio: «Q55,551,234» es un teléfono disfrazado y se bloquea.
-		['cambia', '(\\bq\\.?|\\bus\\$|\\$|\\busd|\\bgtq)[ \\t]?[0-9]{1,3}((,[0-9]{3})*,000(\\.[0-9]{1,2})?|(\\.[0-9]{3})*\\.000(,[0-9]{1,2})?)([^0-9.,]|[.,][^0-9]|[.,]?$)'
-			+ '|(^|[^0-9.,])[0-9]{1,3}((,[0-9]{3})*,000(\\.[0-9]{1,2})?|(\\.[0-9]{3})*\\.000(,[0-9]{1,2})?)[ \\t]*(quetzales|d[oó]lares|dollars)\\b', ' x '],
+		// Antes, un precio: con su moneda delante (Q, Q., $, US$, USD) o detrás (quetzales, dólares), con comas de miles y
+		// en mil exactos, hasta 999 millones («Q25,000,000», «US$ 22,500,000.00», «40,000,000 quetzales»). Sin «,000» al
+		// final no es un precio: «Q55,551,234» es un teléfono disfrazado y se bloquea; con más cifras, tampoco (internacional).
+		['cambia', '(\\bq\\.?|\\bus\\$|\\$|\\busd)[ \\t]?[0-9]{1,3}(,[0-9]{3})?,000(\\.[0-9]{1,2})?([^0-9.,]|[.,][^0-9]|[.,]?$)'
+			+ '|(^|[^0-9.,])[0-9]{1,3}(,[0-9]{3})?,000(\\.[0-9]{1,2})?[ \\t]*(quetzales|d[oó]lares)\\b', ' x '],
 		['cambia', '[ \\t]x[ \\t]', ' * '],
 		['si', '(^|[^0-9])[2-7]([^0-9' + LETRA + ']{0,3}[0-9]){7}|[0-9]([^0-9' + LETRA + ']{0,3}[0-9]){9}', 0, 'telefono'],
 		// 6. Lo que queda: dos grupos de 4 con palabras en medio («5555 y luego 1234»). Las excepciones de aquí abajo solo

@@ -1,5 +1,6 @@
 // Pruebas de admin/js/casa-nueva.js: la casa nueva que sube el socio (lo que se revisa y lo que pone el sistema).
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { revisarCasaNueva, armarCasaNueva, datosParaServidor, MIN_FOTOS } from '../admin/js/casa-nueva.js';
 import '../js/calc-vacacional.js';
 
@@ -96,5 +97,25 @@ t('armar: publicada y disponible al momento; por noche, sus precios públicos co
 	assert.deepEqual(n.casa.vacacional.reservadas, []);
 	assert.equal(n.casa.agentId, '');
 	assert.deepEqual(n.llegada.direccion, 'Lote 4, calle al mar');
+});
+// Lo que el panel hace con la casa del socio (pantallas con DOM y Firebase: se revisa en su código).
+const fuente = (f) => readFileSync(new URL(`../admin/js/${f}`, import.meta.url), 'utf8');
+t('al socio se le dice «unos 20 minutos» con un solo texto (SALE_SOLA), en la casa nueva y en «Mis propiedades»', () => {
+	assert.match(fuente('session.js'), /export const SALE_SOLA = 'Sale en la página en unos 20 minutos\.';/);
+	for (const f of ['views/properties.js', 'views/mis-casas.js']) {
+		assert.match(fuente(f), /publicaSola \? `[^`]*\$\{SALE_SOLA\}`/, f);
+		assert.doesNotMatch(fuente(f), /Sale en la página en unos minutos/, f);
+	}
+});
+t('«Listo» y «Deshacer» de Cambios de un dueño: si traducen al inglés, dejan el sitio por publicar', () => {
+	const f = fuente('views/cambios-dueno.js');
+	const cuerpo = f.slice(f.indexOf('async function inglesAlDia'), f.indexOf('\n}\n', f.indexOf('async function inglesAlDia')));
+	assert.match(cuerpo, /await guardarCambios\([^]*\n\tawait markPending\(`Traducción al inglés: /);
+});
+t('eliminar la casa suelta la URL y el código que apartó (por su propertyId, en el mismo lote que la borra)', () => {
+	const f = fuente('views/properties.js');
+	const cuerpo = f.slice(f.indexOf('export async function eliminarPropiedad'), f.indexOf('await borrarFotos(p);'));
+	assert.match(cuerpo, /\['urlsCasas', 'codigosCasas'\]\.map\(\(c\) => getDocs\(query\(collection\(db, c\), where\('propertyId', '==', p\.id\)\)\)/);
+	assert.match(cuerpo, /apartados\.forEach\(\(ref\) => lote\.delete\(ref\)\);\n\tlote\.delete\(doc\(db, 'properties', p\.id\)\);\n\tawait lote\.commit\(\);/);
 });
 console.log(`${ok} pruebas de la casa nueva del socio correctas`);
