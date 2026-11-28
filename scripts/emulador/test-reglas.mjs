@@ -289,6 +289,15 @@ await espera('socio manda como «pago» otro texto (su teléfono)', crear('socio
 await espera('cliente manda un «pago»', crear(null, msj(), pago('cliente', 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno')), false);
 await espera('otro socio manda un «pago» en chat ajeno', crear('socio2', msj(), pago('socio', 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno')), false);
 await espera('equipo manda los datos de pago del socio', crear('admin1', msj(), pago('equipo', 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno')), true);
+// Los datos de pago por partes (admin/js/datos-pago.js textoPago): tres renglones con el número de cuenta, que el filtro de
+// contacto tomaría por un teléfono. El mensaje con tipo «pago» no pasa por ese filtro: se compara con lo guardado.
+{
+	const PAGO3 = 'Banco Industrial\nCuenta monetaria en quetzales: 123-456789-0\nA nombre de Socio Uno';
+	await poner('propietarios/o1', { nombre: 'Socio Uno', telefono: '55550001', agentId: 'a1', datosPago: PAGO3 });
+	await espera('equipo manda los datos de pago en tres renglones (el número no lo frena el filtro de contacto)', crear('admin1', msj(), pago('equipo', PAGO3)), true);
+	await espera('equipo manda el número de cuenta como texto libre (el filtro de contacto lo frena)', crear('admin1', msj(), { de: 'equipo', texto: 'Cuenta 123-456789-0' }), false);
+	await poner('propietarios/o1', { nombre: 'Socio Uno', telefono: '55550001', agentId: 'a1', datosPago: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno' });
+}
 // Visto, llegada y foto
 const visto = (quien, campo) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `projects/demo-eq/databases/(default)/documents/chats/${T}`, fields: {} }, updateMask: { fieldPaths: [] }, currentDocument: { exists: true }, updateTransforms: [{ fieldPath: campo, setToServerValue: 'REQUEST_TIME' }] }] }) }).then((r) => r.status);
 await espera('cliente marca su visto', visto(null, 'vistoCliente'), true);
@@ -872,6 +881,7 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		const renglon = (id, quien, o = {}) => ({ update: { name: `${R}/bitacora/${id}`, fields: { tipo: sv('propietario'), objeto: sv('m1'), antes: foto('Banco 1'), despues: foto('Banco 2'), quien: sv(quien), nombre: sv('Admin'), avisado: { booleanValue: false }, ...o } },
 			currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] });
 		await espera('el asesor de la dueña le cambia sus datos de pago', parche('asesor7', 'propietarios/m1', ['datosPago'], { datosPago: sv('Banco del asesor 999') }), false);
+		await espera('el asesor de la dueña le cambia las partes de su cuenta', parche('asesor7', 'propietarios/m1', ['pago'], { pago: { mapValue: { fields: { banco: sv('Banrural'), cuenta: sv('999'), titular: sv('Asesor') } } } }), false);
 		await espera('el asesor cambia los datos de pago con su renglón', lote('asesor7', [ficha('Banco 2', 'pg1'), renglon('pg1', 'asesor7')]), false);
 		await espera('el administrador cambia los datos de pago sin su renglón', parche('admin1', 'propietarios/m1', ['datosPago'], { datosPago: sv('Banco 2') }), false);
 		await espera('el administrador anota otro «antes» del que había', lote('admin1', [ficha('Banco 2', 'pg2'), renglon('pg2', 'admin1', { antes: foto('Banco 0') })]), false);

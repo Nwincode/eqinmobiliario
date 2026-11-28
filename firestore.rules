@@ -530,12 +530,12 @@ service cloud.firestore {
     match /propietarios/{id} {
       // Solo el equipo: la ficha lleva notas, bitácora y datos internos. El dueño lee su resumen (portalPropietarios).
       allow read: if propio();
-      // Los permisos del socio (permisos) y sus datos de pago los cambia solo el administrador.
+      // Los permisos del socio (permisos) y sus datos de pago (el texto, datosPago, y sus partes, pago) los cambia solo el administrador.
       allow create: if nuevoPropio()
-        && (isAdmin() || !request.resource.data.keys().hasAny(['permisos', 'datosPago', 'datosPagoCambio', 'bitacoraId']))
+        && (isAdmin() || !request.resource.data.keys().hasAny(['permisos', 'datosPago', 'pago', 'datosPagoCambio', 'bitacoraId']))
         && (fotoPropietario(request.resource.data) == fotoPropietario({}) || anotado('propietario', id));
       allow update: if propio() && conservaAsesor()
-        && (isAdmin() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['permisos', 'datosPago', 'datosPagoCambio', 'bitacoraId']))
+        && (isAdmin() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['permisos', 'datosPago', 'pago', 'datosPagoCambio', 'bitacoraId']))
         && (fotoPropietario(request.resource.data) == fotoPropietario(resource.data) || anotado('propietario', id));
       allow delete: if isAdmin();
     }

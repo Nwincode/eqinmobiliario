@@ -19,6 +19,7 @@ import { tarjetaGlobal, bloqueSocio } from '../permisos-ui.js';
 import { anotar, bitacoraActiva, verCambios } from '../bitacora-panel.js';
 import { enviarEstadoDeCuenta } from '../estado-cuenta-enviar.js';
 import { fotoPropietario } from '../bitacora.js';
+import { BANCOS, TIPOS_CUENTA, MONEDAS_CUENTA, pagoPorGuardar } from '../datos-pago.js';
 
 // Las casas de esta ficha quedan suyas y las que salieron de ella quedan sin dueño (si eran suyas), con la única
 // forma de enlazar (asignarDueno: la casa manda; la lista `propiedades` de cada persona y su `porNoche` los pone al día
@@ -139,6 +140,28 @@ async function renderLista(container) {
 			: emptyState('Aún no hay propietarios registrados.', h('a', { href: '#/propietarios/nuevo', class: 'btn btn-primary' }, 'Registrar propietario')));
 }
 
+// Datos de pago (solo el administrador): una cuenta por partes. Sin «Otro»: Banco | Tipo | Moneda y abajo Número | A nombre
+// de. Con «Otro»: Banco | Nombre del banco y abajo los cuatro. Unos de antes en texto libre se ven en una nota hasta
+// que se llenen los campos (al guardar sin llenarlos, quedan como están).
+function camposPago(conNoche) {
+	const otro = (d) => d.pago?.banco === 'Otro';
+	const conPago = (d) => conNoche(d);
+	return [
+		{ type: 'section', label: 'Datos de pago', when: conPago, help: 'El cliente los recibe en el chat al confirmar. Cada cambio queda anotado y le llega al equipo por correo.' },
+		{ type: 'custom', when: (d) => conPago(d) && !d.pago?.banco && Boolean(String(d.datosPago || '').trim()), update: (el, d) => {
+			el.className = 'alert alert-info small mb-0';
+			el.style.whiteSpace = 'pre-line';
+			el.textContent = `Datos de antes, en texto libre:\n${d.datosPago}\nSiguen así hasta que llenes los campos.`;
+		} },
+		{ name: 'pago.banco', label: 'Banco', type: 'select', options: [['', 'Elige el banco'], ...BANCOS.map((b) => [b, b])], cols: 6, colsCelular: 12, when: conPago },
+		{ name: 'pago.bancoOtro', label: 'Nombre del banco', maxlength: 60, cols: 6, when: (d) => conPago(d) && otro(d) },
+		{ name: 'pago.tipoCuenta', label: 'Tipo de cuenta', type: 'select', options: TIPOS_CUENTA, default: 'Monetaria', cols: (d) => (otro(d) ? 2 : 3), when: conPago },
+		{ name: 'pago.moneda', label: 'Moneda', type: 'select', options: MONEDAS_CUENTA, default: 'GTQ', cols: (d) => (otro(d) ? 2 : 3), when: conPago },
+		{ name: 'pago.cuenta', label: 'Número de cuenta', maxlength: 40, cols: (d) => (otro(d) ? 3 : 6), colsCelular: 12, placeholder: '123-456789-0', when: conPago },
+		{ name: 'pago.titular', label: 'A nombre de', maxlength: 120, cols: (d) => (otro(d) ? 5 : 6), when: conPago }
+	];
+}
+
 async function renderEditor(container, id) {
 	const nuevo = id === 'nuevo';
 	const ref = nuevo ? doc(collection(db, 'propietarios')) : doc(db, 'propietarios', id);
@@ -190,7 +213,8 @@ async function renderEditor(container, id) {
 		// Venta, renta y renta por noche no son lo mismo: cada una con su bloque y lo que se le pide.
 		{ type: 'section', label: 'Renta por noche', when: conNoche, help: 'Es socio de renta vacacional: a su correo le llegan las solicitudes de reserva y atiende él mismo sus casas. La empresa gana el margen de cada casa (se pone en la ficha de la casa).' },
 		// Solo el administrador los cambia (firestore.rules): cada cambio queda anotado y le llega al equipo por correo.
-		session.isAdmin ? { name: 'datosPago', label: 'Datos de pago para las reservas', type: 'textarea', rows: 2, maxlength: 1000, when: conNoche, placeholder: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de…', help: 'Se le envían al cliente por el chat al confirmar su reserva. Cada cambio queda anotado y le llega al equipo por correo.' } : null,
+		// Una sola cuenta, por partes (admin/js/datos-pago.js); el texto que recibe el cliente sale de ellas al guardar.
+		...(session.isAdmin ? camposPago(conNoche) : []),
 		// La exclusiva, la comisión y los impuestos son de cada inmueble: se ponen en la ficha del inmueble
 		// («Acuerdo con el dueño»). Aquí queda solo quién atiende a esta persona, que decide qué asesor la ve.
 		session.isAdmin ? { type: 'section', label: 'Asesor', when: conComision, help: 'El asesor que atiende a esta persona por lo que tiene en venta o renta: es quien la ve en su panel. Sus casas por noche no llevan asesor.' } : null,
@@ -207,6 +231,9 @@ async function renderEditor(container, id) {
 	const persistir = async () => {
 		if (!form.validate()) return false;
 		const d = form.getData();
+		// Una cuenta a medias no se guarda (antes de preguntar nada).
+		const faltaPago = session.isAdmin && conNoche(d) ? pagoPorGuardar(d.pago).error : '';
+		if (faltaPago) { toast(faltaPago, 'warning'); return false; }
 		d.telefonoNorm = telNorm(d.telefono);
 		// Solo el enlace a la casa (antes se guardaba también un «precio mínimo aceptado»: aquí no se regatea).
 		const lista = (d.propiedades || []).filter((x) => x.propertyId).map((x) => x.propertyId);
@@ -229,6 +256,13 @@ async function renderEditor(container, id) {
 			// Los datos de pago: los del asesor (que no los ve) quedan como están; los del administrador, si cambiaron, van
 			// con su renglón en cambiosDatosPago en el mismo lote (quién, cuándo, antes y después) y el correo al equipo.
 			const pagoAntes = typeof ahora.datosPago === 'string' ? ahora.datosPago : '';
+			// Las partes de la cuenta (solo el administrador): el texto sale de ellas (datos-pago.js); vacías, queda el de antes.
+			const porPagar = session.isAdmin && conNoche(d) ? pagoPorGuardar(d.pago, { pagoAntes: ahora.pago, textoAntes: pagoAntes }) : null;
+			if (porPagar?.error) { toast(porPagar.error, 'warning'); return false; }
+			if (porPagar) d.datosPago = porPagar.datosPago;
+			if (porPagar?.pago) d.pago = porPagar.pago;
+			else if (porPagar || ahora.pago === undefined) delete d.pago;
+			else d.pago = ahora.pago;
 			if (!session.isAdmin || d.datosPago === undefined) d.datosPago = pagoAntes;
 			const cambiaPago = String(d.datosPago || '') !== pagoAntes;
 			for (const k of ['bitacora', 'portalToken', 'portalVersion', 'proximoPaso', 'portalActualizado', 'portalPrivado', 'acceso', 'propiedades', 'porNoche', 'permisos', 'datosPagoCambio', 'bitacoraId']) {

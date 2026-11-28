@@ -111,7 +111,9 @@ async function lista(container) {
 		avisoSocio(perm),
 		// Con casas por noche, sus datos de pago: se le mandan al cliente al confirmar una reserva.
 		porNoche ? (resumen?.datosPago
-			? h('p', { class: 'small text-muted' }, h('span', { class: 'icon-credit-card me-1', 'aria-hidden': 'true' }), 'Tus datos de pago (le llegan al cliente al confirmar): ', h('span', { class: 'text-body', style: 'white-space: pre-line' }, resumen.datosPago), '. ¿Cambiaron? Avísale al administrador.')
+			// En sus renglones (banco, cuenta, a nombre de: admin/js/datos-pago.js); la frase va antes, no pegada al final.
+			? h('p', { class: 'small text-muted' }, h('span', { class: 'icon-credit-card me-1', 'aria-hidden': 'true' }), 'Tus datos de pago (le llegan al cliente al confirmar; si cambiaron, avísale al administrador):',
+				h('span', { class: 'd-block text-body', style: 'white-space: pre-line' }, resumen.datosPago))
 			: h('div', { class: 'alert alert-warning small' }, 'Faltan tus datos de pago: sin ellos no puedes confirmar reservas. Pídele al administrador que los guarde en tu ficha.')) : null,
 		casas.some((c) => c.operacion !== 'vacacional') && ag.nombre ? h('p', { class: 'small text-muted' }, h('span', { class: 'icon-user me-1', 'aria-hidden': 'true' }), 'Tu asesor: ', h('strong', { class: 'text-body' }, ag.nombre)) : null,
 		!casas.length ? emptyState(puedeAgregar ? 'Todavía no tienes propiedades. Sube la primera con «Agregar casa».' : 'Todavía no tienes propiedades asignadas. Escríbele a tu asesor y las activamos.') : [

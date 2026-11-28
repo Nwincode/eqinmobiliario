@@ -29,10 +29,12 @@ export async function avisarCambiosDePago() {
 			return true;
 		}).catch((err) => { console.error('Datos de pago (apartar):', err.message); return false; });
 		if (!mio) continue;
+		// Los datos por partes vienen en renglones (admin/js/datos-pago.js): en el correo, en una línea con «·».
+		const enLinea = (t) => String(t || '').split('\n').map((x) => x.trim()).filter(Boolean).join(' · ');
 		const socio = (await leerPrivado(`propietarios/${c.propietarioId}`).catch(() => null))?.nombre || c.propietarioId;
 		// Quién: el nombre de su usuario (el `nombre` del renglón lo escribe quien anota; las reglas solo atan `quien`).
 		const usuario = /^[A-Za-z0-9_-]{1,128}$/.test(String(c.quien || '')) ? await leerPrivado(`users/${c.quien}`).catch(() => null) : null;
-		const filas = [['Socio', socio], ['Cambió', `${firma(c, { [c.quien]: usuario }) || 'Administrador'} · ${fecha(c.cuando)}`], ['Antes', c.antes || '(sin datos)'], ['Ahora', c.despues || '(sin datos)']];
+		const filas = [['Socio', socio], ['Cambió', `${firma(c, { [c.quien]: usuario }) || 'Administrador'} · ${fecha(c.cuando)}`], ['Antes', enLinea(c.antes) || '(sin datos)'], ['Ahora', enLinea(c.despues) || '(sin datos)']];
 		const html = await plantilla({
 			titulo: 'Cambiaron los datos de pago de un socio',
 			intro: 'Es la cuenta a la que el cliente paga al confirmar su reserva. Si no lo reconoces, revísalo ya en su ficha.',
