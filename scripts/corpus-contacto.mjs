@@ -338,7 +338,9 @@ export const LIMITES_ACEPTADOS = [
 	'mi número: cinco cinco cinco cinco', 'termina en 1234', '55-55',
 	'12-34', 'IV IV', 'whatsapp 5555',
 	// Un teléfono que termina en 000 escrito como precio en miles exactos («Q55,551,000»): pasa como precio.
-	'Q55,551,000'];
+	'Q55,551,000',
+	// Medio teléfono como precio con la otra mitad a dos signos o más («, », « - »): pasa, para que pase «Q50,000,000, 600 v2».
+	'Q2,420,000, 3000', '5555, $1,000', 'mi cel 5555 - Q1,000'];
 
 // Corpus GENERADO: cada teléfono y cada usuario conocidos envueltos en cada contexto de excepción que tiene el filtro
 // (sus palabras, con dos puntos, en mayúsculas, con y sin acentos, en dos líneas, delante y detrás, en español y en
