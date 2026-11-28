@@ -186,7 +186,7 @@ export const NORMALES = (() => [
 	'Lo vi en instagram es muy bonita, ¿tiene piscina?', 'Por instagram vi que tiene muelle', 'fb: gracias',
 	// El precio de una casa en el título, la descripción o una amenidad: con su moneda y en miles exactos, aunque tenga 8
 	// cifras que empiezan de 2 a 7 (Q20M a Q79.9M).
-	'Precio Q25,000,000', 'Precio Q 25,000,000.00 negociable', 'Precio: Q.25,000,000', 'Precio $25,000,000', 'US$ 22,500,000', 'USD 30,000,000',
+	'Precio Q25,000,000', 'Q25,000,000 o Q30,000,000', 'Entregada 300,000 dólares y preventa $275,000', 'Precio Q 25,000,000.00 negociable', 'Precio: Q.25,000,000', 'Precio $25,000,000', 'US$ 22,500,000', 'USD 30,000,000',
 	'Valor 40,000,000 quetzales', '25,000,000 dólares', 'Q 2,500,000.00', 'Casa de 4 habitaciones en Q50,000,000, 600 v2 de terreno'
 ].map(alAnio))();
 
@@ -293,7 +293,9 @@ export const EVASIONES = (() => [
 	'cinco mil quinientos cincuenta y cinco, mil doscientos treinta y cuatro', 'five five five five zero five five five', 'fifty five fifty five four thousand eight hundred forty two',
 	// Un teléfono vestido de precio (sin miles exactos, o con más cifras que un precio) o junto a un precio.
 	'Q55,551,234', '$55,551,234', 'Precio Q25,000,000 y mi cel 5555 1234', '5555 Q25,000,000 1234', 'Q25,000,000 55551234', 'Precio Q25,000,000, 5555-1234',
-	'Q5,055,551,000', 'US$ 1,305,555,000'
+	'Q5,055,551,000', 'US$ 1,305,555,000',
+	// Medio teléfono escrito como precio y la otra mitad al lado (segunda revisión).
+	'mi cel es 5555 $1,000', '5555 1,000 quetzales', '$5,000 1234', 'Q5,000-1234', 'Q2,420,000 3000', 'Q 5555 1,000 quetzales', 'mi cel 555 Q51,234,000', 'el 555 Q51,234,000 es mi cel'
 ].map(alAnio))();
 
 // Se bloquea aunque podría ser normal.

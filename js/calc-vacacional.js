@@ -511,6 +511,10 @@
 	//   'crudo': en el texto tal como llegó; el resto, en minúsculas.
 	var UNIDAD = '(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oó]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oó]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[ií]as|d[ií]a|horas|hora|hrs|hr|personas|adultos|ni[ñn]os|hu[eé]spedes|habitaciones|cuartos|camas|ba[ñn]os|parqueos|de limpieza|de dep[oó]sito|de terreno|de construcci[oó]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)';
 	var LETRA = 'a-záéíóúñü';
+	// Un precio con su moneda y comas de miles, en mil exactos (ver el paso 5).
+	var PRECIO_ANTES = '(^[^0-9]{0,3}|[^0-9]{4})', PRECIO_DESPUES = '([^0-9' + LETRA + ']{0,3}[' + LETRA + ']|[^0-9' + LETRA + ']{0,3}$|[^0-9' + LETRA + ']{4})';
+	var PRECIO_SOLO = PRECIO_ANTES + '(\\bq\\.?|\\bus\\$|\\$|\\busd)[ \\t]?[0-9]{1,3}(,[0-9]{3})?,000(\\.[0-9]{1,2})?' + PRECIO_DESPUES
+		+ '|' + PRECIO_ANTES + '[0-9]{1,3}(,[0-9]{3})?,000(\\.[0-9]{1,2})?[ \\t]*(quetzales|d[oó]lares)' + PRECIO_DESPUES;
 	// Un usuario de otra plataforma o de un correo: con la forma de uno (lleva cifras, punto o guion bajo: «villa.lago»,
 	// «ana_88», «anaperez90»). Una palabra de diccionario no («Mi correo es obligatorio», «Mi whatsapp es lento»); en una
 	// red social (REDES), una palabra pura sí cuenta donde no cabe otra cosa («mi insta es villalago», «ig juanlago»: el paso
@@ -685,8 +689,10 @@
 		// Antes, un precio: con su moneda delante (Q, Q., $, US$, USD) o detrás (quetzales, dólares), con comas de miles y
 		// en mil exactos, hasta 999 millones («Q25,000,000», «US$ 22,500,000.00», «40,000,000 quetzales»). Sin «,000» al
 		// final no es un precio: «Q55,551,234» es un teléfono disfrazado y se bloquea; con más cifras, tampoco (internacional).
-		['cambia', '(\\bq\\.?|\\bus\\$|\\$|\\busd)[ \\t]?[0-9]{1,3}(,[0-9]{3})?,000(\\.[0-9]{1,2})?([^0-9.,]|[.,][^0-9]|[.,]?$)'
-			+ '|(^|[^0-9.,])[0-9]{1,3}(,[0-9]{3})?,000(\\.[0-9]{1,2})?[ \\t]*(quetzales|d[oó]lares)\\b', ' x '],
+		// Solo si no hay otra cifra a 3 signos o menos, antes ni después: «5555 $1,000» o «Q2,420,000 3000» son un teléfono
+		// partido y siguen bloqueados. Va dos veces: dos precios seguidos («Q25,000,000 o Q30,000,000») comparten el espacio.
+		['cambia', PRECIO_SOLO, ' x '],
+		['cambia', PRECIO_SOLO, ' x '],
 		['cambia', '[ \\t]x[ \\t]', ' * '],
 		['si', '(^|[^0-9])[2-7]([^0-9' + LETRA + ']{0,3}[0-9]){7}|[0-9]([^0-9' + LETRA + ']{0,3}[0-9]){9}', 0, 'telefono'],
 		// 6. Lo que queda: dos grupos de 4 con palabras en medio («5555 y luego 1234»). Las excepciones de aquí abajo solo

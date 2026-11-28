@@ -393,6 +393,14 @@ test('títulos y descripciones únicos; un solo h1 en cada página que se indexa
 	}
 });
 
+test('descripción de fotos: la escrita a mano se respeta; «Título – foto N» de antes se arma con el título de hoy', async () => {
+	const { photoAlt } = await import('./lib/templates.mjs');
+	const casa = { titulo: 'Casa nueva', fotos: [{ alt: 'Casa vieja – foto 3' }, { alt: 'Sala con chimenea' }, {}] };
+	assert.equal(photoAlt(casa, 0), 'Casa nueva – foto 1');
+	assert.equal(photoAlt(casa, 1), 'Sala con chimenea');
+	assert.equal(photoAlt(casa, 2), 'Casa nueva – foto 3');
+});
+
 test('al compartir: foto de la ficha en JPG 1200×630 por el CDN, con medidas, texto y tarjeta grande', () => {
 	const h = de('/propiedad/casa-en-venta-en-zona-16-2/');
 	assert.match(attr(h, /<meta property="og:image" content="([^"]*)"/), /^https:\/\/eqinmobiliario\.gt\/\.netlify\/images\?url=%2Fimages%2Fimg_3\.webp&amp;w=1200&amp;h=630&amp;fit=cover&amp;fm=jpg$/);

@@ -143,7 +143,7 @@ export function revisarCasaNueva({ datos = {}, casaId, bucket, origenes, dueno =
 	return { errores, casa, socio, llegada };
 }
 
-// La casa lista para guardar: lo revisado más lo que pone el sistema. `quien`: { fecha, por, porUid }. `extra`: dueño,
+// La casa lista para guardar: lo revisado más lo que pone el sistema. `quien`: { fecha, porUid } (sin nombre: la casa se lee desde afuera). `extra`: dueño,
 // URL, código y lo de siempre (publicada al momento, disponible). La de por noche lleva sus precios públicos (los del
 // socio más el margen de siempre) y su privado/socio con ese margen.
 export function armarCasaNueva(revisada, extra = {}) {
