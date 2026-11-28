@@ -16,6 +16,7 @@ import { session, markPending, cargarMiResumen, misCasas, SALE_SOLA } from '../s
 import { prefijoMoneda, decimales, nNoches, dineroPorMoneda, nombreMes, moverMes, dineroCorto } from '../formato.js';
 import { filaCasa, publicUrl } from '../ficha-casa.js';
 import { resumenCasa, cabeceraCasa, estadoCasa } from '../resumen-casa.js';
+import { accionesPedido } from '../pedido-dueno.js';
 import { huespedesMaxDe } from '../cambios-casa.js';
 import { guardarPrivadoVacacional, socioLimpio } from '../privado-casa.js';
 import { anotar, bitacoraActiva } from '../bitacora-panel.js';
@@ -24,6 +25,7 @@ import { fotoCasa, igual } from '../bitacora.js';
 import { rango, QUE_CADA, MOTIVOS_BLOQUEO, textoDueno, sinValores } from '../texto-dueno.js';
 import { renderForm } from '../form.js';
 import { CAMPOS_DUENO, HORAS, valoresDueno } from '../mi-casa.js';
+import { opcionesCancelacion } from '../cancelacion.js';
 import { permisosDelSocio, avisoSocio } from '../permisos-ui.js';
 import { puede } from '../permisos-socio.js';
 import { amenidadesPara } from '../estados.js';
@@ -111,7 +113,9 @@ async function lista(container) {
 		avisoSocio(perm),
 		// Con casas por noche, sus datos de pago: se le mandan al cliente al confirmar una reserva.
 		porNoche ? (resumen?.datosPago
-			? h('p', { class: 'small text-muted' }, h('span', { class: 'icon-credit-card me-1', 'aria-hidden': 'true' }), 'Tus datos de pago (le llegan al cliente al confirmar): ', h('span', { class: 'text-body', style: 'white-space: pre-line' }, resumen.datosPago), '. ¿Cambiaron? Avísale al administrador.')
+			// En sus renglones (banco, cuenta, a nombre de: admin/js/datos-pago.js); la frase va antes, no pegada al final.
+			? h('p', { class: 'small text-muted' }, h('span', { class: 'icon-credit-card me-1', 'aria-hidden': 'true' }), 'Tus datos de pago (le llegan al cliente al confirmar; si cambiaron, avísale al administrador):',
+				h('span', { class: 'd-block text-body', style: 'white-space: pre-line' }, resumen.datosPago))
 			: h('div', { class: 'alert alert-warning small' }, 'Faltan tus datos de pago: sin ellos no puedes confirmar reservas. Pídele al administrador que los guarde en tu ficha.')) : null,
 		casas.some((c) => c.operacion !== 'vacacional') && ag.nombre ? h('p', { class: 'small text-muted' }, h('span', { class: 'icon-user me-1', 'aria-hidden': 'true' }), 'Tu asesor: ', h('strong', { class: 'text-body' }, ag.nombre)) : null,
 		!casas.length ? emptyState(puedeAgregar ? 'Todavía no tienes propiedades. Sube la primera con «Agregar casa».' : 'Todavía no tienes propiedades asignadas. Escríbele a tu asesor y las activamos.') : [
@@ -119,14 +123,16 @@ async function lista(container) {
 			filas]);
 }
 
-// Una casa en venta o renta: cómo va, solo lectura, desde su resumen.
-// «propia»: la casa dice ser suya; una enlazada solo desde su ficha se ve, pero su respuesta al anuncio la regla
-// no la deja (la casa tiene que decir que es suya), así que no se ofrece.
+// Una casa en venta o renta: cómo va, solo lectura, desde su resumen. En la fila del título, sus pedidos al equipo
+// («Pedir un cambio», «Ya se vendió» / «Ya se rentó»: admin/js/pedido-dueno.js); no agregan una fila.
+// «propia»: la casa dice ser suya; una enlazada solo desde su ficha se ve, pero su respuesta al anuncio y sus pedidos
+// la regla no los deja (la casa tiene que decir que es suya), así que no se ofrecen.
 async function enVenta(container, id, titulo, propia) {
 	const resumen = await cargarMiResumen();
 	const p = (resumen?.propiedades || []).find((x) => x.id === id);
 	mount(container,
-		h('div', { class: 'd-flex align-items-center gap-2 mb-3' }, volver('Volver a mis propiedades'), h('h1', { class: 'h4 mb-0' }, p?.titulo || titulo || 'Propiedad')),
+		h('div', { class: 'd-flex align-items-center gap-2 mb-3' }, volver('Volver a mis propiedades'), h('h1', { class: 'h4 mb-0 flex-grow-1', style: 'min-width: 0' }, p?.titulo || titulo || 'Propiedad'),
+			p && propia && resumen.id ? accionesPedido(resumen, p) : null),
 		p ? resumenCasa(resumen, p, { responder: propia }) : emptyState('Tu asesor todavía está preparando el resumen de esta propiedad. Vuelve a entrar en un rato.'));
 }
 
@@ -537,7 +543,8 @@ const esquemaCasa = (id) => [
 	{ name: 'checkOut', label: 'Hora de salida', type: 'select', options: HORAS.map((x) => [x, x]), cols: 3 },
 	{ name: 'deposito', label: 'Depósito (se devuelve)', type: 'number', min: 0, max: 50000, step: 0.01, cols: 3 },
 	{ name: 'mascotas', label: 'Mascotas', type: 'select', options: SI_NO, cols: 3 },
-	{ name: 'cancelacion', label: 'Cancelación', type: 'textarea', rows: 2, cols: 6, help: 'Vacío: la política general del sitio.' },
+	{ name: 'cancelacionPolitica', label: 'Política de cancelación', type: 'opciones', options: opcionesCancelacion(), cols: 6 },
+	{ name: 'cancelacion', label: 'Nota de cancelación (opcional)', cols: 6, placeholder: 'Ej. En Semana Santa no hay devolución.', help: 'El depósito siempre se devuelve.' },
 	{ name: 'reglas', label: 'Reglas de la casa (una por línea)', type: 'textarea', rows: 3, cols: 6, help: 'Vacío: las reglas generales del sitio.' },
 	{ name: 'comoLlegar', label: 'Cómo llegar', type: 'textarea', rows: 3, cols: 6 },
 	{ type: 'section', label: 'Llegada (privada)', help: 'El huésped la recibe por el chat cuando marcas su pago; nunca sale en la página.' },

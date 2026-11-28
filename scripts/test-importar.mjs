@@ -32,6 +32,14 @@ t('La plantilla del socio: cada fila sale como casa por noche, con su dueño (po
 	assert.deepEqual(r.datos.amenidades, ['Piscina', 'Muelle', 'Wifi']);
 });
 
+t('Municipio del CSV: con el nombre de la tabla y su departamento; uno repetido va sin departamento; uno desconocido, tal cual', () => {
+	const fila = (ciudad, zona = '') => filaAPropiedad({ titulo: 'Casa de prueba', ciudad, zona }, { opciones, duenos }).datos;
+	assert.deepEqual([fila('antigua').ciudad, fila('antigua').departamento], ['Antigua Guatemala', 'Sacatepéquez']);
+	assert.deepEqual([fila('Ciudad de Guatemala', '10').ciudad, fila('Ciudad de Guatemala', '10').departamento, fila('Ciudad de Guatemala', '10').zona], ['Guatemala', 'Guatemala', 'Zona 10']);
+	assert.equal(fila('san miguel duenas').ciudad, 'San Miguel Dueñas');
+	assert.deepEqual([fila('San José').ciudad, fila('San José').departamento], ['San José', undefined]);
+	assert.deepEqual([fila('Narnia').ciudad, fila('Narnia').departamento], ['Narnia', undefined]);
+});
 t('Guardada desde Excel en español (punto y coma, acentos en Windows-1252): se lee igual', () => {
 	const excel = PLANTILLA.replace('Casa frente al lago', 'Casa frente al lago Atitlán').split('\n')
 		.map((l) => l.split(',').map((c) => (c.includes(';') ? `"${c}"` : c)).join(';')).join('\r\n'); // como lo guarda Excel

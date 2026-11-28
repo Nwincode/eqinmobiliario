@@ -289,6 +289,15 @@ await espera('socio manda como «pago» otro texto (su teléfono)', crear('socio
 await espera('cliente manda un «pago»', crear(null, msj(), pago('cliente', 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno')), false);
 await espera('otro socio manda un «pago» en chat ajeno', crear('socio2', msj(), pago('socio', 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno')), false);
 await espera('equipo manda los datos de pago del socio', crear('admin1', msj(), pago('equipo', 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno')), true);
+// Los datos de pago por partes (admin/js/datos-pago.js textoPago): tres renglones con el número de cuenta, que el filtro de
+// contacto tomaría por un teléfono. El mensaje con tipo «pago» no pasa por ese filtro: se compara con lo guardado.
+{
+	const PAGO3 = 'Banco Industrial\nCuenta monetaria en quetzales: 123-456789-0\nA nombre de Socio Uno';
+	await poner('propietarios/o1', { nombre: 'Socio Uno', telefono: '55550001', agentId: 'a1', datosPago: PAGO3 });
+	await espera('equipo manda los datos de pago en tres renglones (el número no lo frena el filtro de contacto)', crear('admin1', msj(), pago('equipo', PAGO3)), true);
+	await espera('equipo manda el número de cuenta como texto libre (el filtro de contacto lo frena)', crear('admin1', msj(), { de: 'equipo', texto: 'Cuenta 123-456789-0' }), false);
+	await poner('propietarios/o1', { nombre: 'Socio Uno', telefono: '55550001', agentId: 'a1', datosPago: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno' });
+}
 // Visto, llegada y foto
 const visto = (quien, campo) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `projects/demo-eq/databases/(default)/documents/chats/${T}`, fields: {} }, updateMask: { fieldPaths: [] }, currentDocument: { exists: true }, updateTransforms: [{ fieldPath: campo, setToServerValue: 'REQUEST_TIME' }] }] }) }).then((r) => r.status);
 await espera('cliente marca su visto', visto(null, 'vistoCliente'), true);
@@ -645,6 +654,54 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await raw('properties/mx-lista', { titulo: sv('Casa enlazada solo en su lista'), operacion: sv('venta'), propietarioId: sv(''), publicado: { booleanValue: true } });
 	await espera('comentario de una casa enlazada solo en su lista (no dice ser suya)', comentario('mixto1', 'c9', com(TM, 'm1', 'a7', 'mx-lista')), false);
 	await espera('dueña pide cambios con texto (control)', comentario('mixto1', 'c10', com(TM, 'm1', 'a7', 'mx-venta', { tipo: 'cambios', texto: 'Cambiar la foto de la sala' })), true);
+	// Sus pedidos (admin/js/pedido-dueno.js): «Pedir un cambio» con fotos de la carpeta de ESTE pedido y «Ya se vendió» con
+	// la fecha y el precio final. El dueño no toca la casa: el estado y el precio los pone el equipo al aplicarlo.
+	{
+		const fv = (v) => (Array.isArray(v) ? { arrayValue: { values: v.map(fv) } } : typeof v === 'number' ? { doubleValue: v } : val(v));
+		const pedido = (quien, id, f) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `${R}/comentariosPropietarios/${id}`,
+			fields: Object.fromEntries(Object.entries(f).map(([k, v]) => [k, fv(v)])) }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'fecha', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((r) => r.status);
+		const cambio = (id, fotos) => com(TM, 'm1', 'a7', 'mx-venta', { tipo: 'cambios', texto: 'Pinté la fachada', fotos });
+		const cierre = (extra = {}) => com(TM, 'm1', 'a7', 'mx-venta', { tipo: 'cierre', fechaCierre: '2026-11-26', ...extra });
+		const foto = (id, n, casa = 'mx-venta') => `pedidosDueno/${casa}/${id}/${n}.webp`;
+		// La carpeta la aparta el servidor (pedidosDueno/{id}, /api/pedido-dueno): sin apartado vigente de esa casa, sin fotos.
+		const apartar = (id, { casa = 'mx-venta', haceH = 0, propietarioId = 'm1' } = {}) => raw(`pedidosDueno/${id}`, { propietarioId: sv(propietarioId), uid: sv('mixto1'), casa: sv(casa), cuando: { timestampValue: new Date(Date.now() - haceH * 3600_000).toISOString() } });
+		for (const id of ['PedidoConFotos0001', 'PedidoConFotos0002', 'PedidoConFotos0003', 'PedidoConFotos0004', 'PedidoConFotos0005', 'PedidoConFotos0006']) await apartar(id);
+		await apartar('PedidoConFotos0008', { haceH: 25 });
+		await apartar('PedidoConFotos0009', { casa: 'prueba-casa-en-venta' });
+		await espera('dueña pide un cambio con fotos de un pedido que el servidor no apartó', pedido('mixto1', 'PedidoConFotos0007', cambio('PedidoConFotos0007', [foto('PedidoConFotos0007', 1)])), false);
+		await espera('dueña pide un cambio con fotos de un apartado vencido', pedido('mixto1', 'PedidoConFotos0008', cambio('PedidoConFotos0008', [foto('PedidoConFotos0008', 1)])), false);
+		await espera('dueña pide un cambio con fotos de un apartado de otra casa', pedido('mixto1', 'PedidoConFotos0009', cambio('PedidoConFotos0009', [foto('PedidoConFotos0009', 1)])), false);
+		await espera('dueña pide un cambio con fotos de la carpeta del pedido', pedido('mixto1', 'PedidoConFotos0001', cambio('PedidoConFotos0001', [foto('PedidoConFotos0001', 1), foto('PedidoConFotos0001', 2)])), true);
+		await espera('dueña pide un cambio con la foto de otro pedido', pedido('mixto1', 'PedidoConFotos0002', cambio('PedidoConFotos0002', [foto('PedidoConFotos0001', 1)])), false);
+		await espera('dueña pide un cambio con una foto de otra casa', pedido('mixto1', 'PedidoConFotos0003', cambio('PedidoConFotos0003', [foto('PedidoConFotos0003', 1, 'prueba-casa-en-venta')])), false);
+		await espera('dueña pide un cambio con una foto de fuera de nuestro almacenamiento', pedido('mixto1', 'PedidoConFotos0004', cambio('PedidoConFotos0004', ['https://otro.sitio/x.webp'])), false);
+		await espera('dueña pide un cambio con 7 fotos', pedido('mixto1', 'PedidoConFotos0005', cambio('PedidoConFotos0005', [1, 2, 3, 4, 5, 6, 6].map((n) => foto('PedidoConFotos0005', n)))), false);
+		await espera('dueña pide un cambio con la lista de fotos vacía', pedido('mixto1', 'PedidoConFotos0006', cambio('PedidoConFotos0006', [])), false);
+		await espera('dueña avisa que ya se vendió, con fecha y precio final', pedido('mixto1', 'PedidoCierre000001', cierre({ precioFinal: 140000 })), true);
+		await espera('dueña avisa que ya se vendió, sin precio final', pedido('mixto1', 'PedidoCierre000002', cierre()), true);
+		await espera('dueña avisa el cierre sin fecha', pedido('mixto1', 'PedidoCierre000003', com(TM, 'm1', 'a7', 'mx-venta', { tipo: 'cierre' })), false);
+		await espera('dueña avisa el cierre con una fecha mal escrita', pedido('mixto1', 'PedidoCierre000004', cierre({ fechaCierre: '26/11/2026' })), false);
+		await espera('dueña avisa el cierre con precio negativo', pedido('mixto1', 'PedidoCierre000005', cierre({ precioFinal: -5 })), false);
+		await espera('dueña avisa el cierre con el precio como texto', pedido('mixto1', 'PedidoCierre000006', cierre({ precioFinal: '140000' })), false);
+		await espera('dueña avisa el cierre con fotos', pedido('mixto1', 'PedidoCierre000007', cierre({ fotos: [foto('PedidoCierre000007', 1)] })), false);
+		await espera('dueña aprueba el anuncio con un precio final colado', pedido('mixto1', 'PedidoCierre000008', com(TM, 'm1', 'a7', 'mx-venta', { precioFinal: 1 })), false);
+		await espera('dueña avisa el cierre de una casa ajena', pedido('mixto1', 'PedidoCierre000009', com(TM, 'm1', 'a7', 'prueba-casa-en-venta', { tipo: 'cierre', fechaCierre: '2026-11-26' })), false);
+		await espera('dueña marca su casa en venta como vendida directo', parche('mixto1', 'properties/mx-venta', ['estado'], { estado: sv('vendida') }), false);
+		await espera('dueña escribe el cierre de su casa', parche('mixto1', 'properties/mx-venta/privado/cierre', ['precioFinal'], { precioFinal: { doubleValue: 1 } }), false);
+		await espera('el asesor de la dueña lee su pedido', leer('asesor7', 'comentariosPropietarios/PedidoCierre000001'), true);
+		await espera('otro asesor lee el pedido', leer('asesor9', 'comentariosPropietarios/PedidoCierre000001'), false);
+		// «Aplicar» (admin/js/views/cambios-dueno.js aplicarCierre): un lote con el cierre privado, el estado y el «Listo».
+		const aplicar = (quien, casa, pedidoId) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [
+			{ update: { name: `${R}/properties/${casa}/privado/cierre`, fields: { fechaCierre: sv('2026-11-26'), precioFinal: { doubleValue: 140000 }, moneda: sv('USD'), operacion: sv('venta'), pedidoId: sv(pedidoId) } } },
+			{ update: { name: `${R}/properties/${casa}`, fields: { estado: sv('vendida') } }, updateMask: { fieldPaths: ['estado'] } },
+			{ update: { name: `${R}/avisosAtendidos/cambios_${pedidoId}`, fields: { tipo: sv('cambios'), objeto: sv(pedidoId), agentId: sv('a7'), por: sv(quien) } }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'fecha', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((r) => r.status);
+		await espera('otro asesor aplica el cierre', aplicar('asesor9', 'mx-venta', 'PedidoCierre000001'), false);
+		await espera('el asesor de la casa aplica el cierre (estado, cierre privado y «Listo» en un lote)', aplicar('asesor7', 'mx-venta', 'PedidoCierre000001'), true);
+		await espera('la dueña lee el precio final (privado/cierre)', leer('mixto1', 'properties/mx-venta/privado/cierre'), false);
+		await espera('cualquiera lee el precio final', leer(null, 'properties/mx-venta/privado/cierre'), false);
+		await espera('el asesor de la casa lee el cierre (Reportes)', leer('asesor7', 'properties/mx-venta/privado/cierre'), true);
+		await parche('dueño', 'properties/mx-venta', ['estado'], { estado: sv('disponible') });
+	}
 	// Reservas, solicitudes y chat: solo de casas por noche
 	await espera('dueña crea una reserva de su casa en venta', crear('mixto1', 'reservas/r-venta', { propertyId: 'mx-venta', propietarioId: 'm1', estado: 'confirmada' }), false);
 	// La reserva de una solicitud: la crea el servidor por el socio (netlify/functions/reservas.mjs) o el administrador en el
@@ -872,6 +929,7 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		const renglon = (id, quien, o = {}) => ({ update: { name: `${R}/bitacora/${id}`, fields: { tipo: sv('propietario'), objeto: sv('m1'), antes: foto('Banco 1'), despues: foto('Banco 2'), quien: sv(quien), nombre: sv('Admin'), avisado: { booleanValue: false }, ...o } },
 			currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] });
 		await espera('el asesor de la dueña le cambia sus datos de pago', parche('asesor7', 'propietarios/m1', ['datosPago'], { datosPago: sv('Banco del asesor 999') }), false);
+		await espera('el asesor de la dueña le cambia las partes de su cuenta', parche('asesor7', 'propietarios/m1', ['pago'], { pago: { mapValue: { fields: { banco: sv('Banrural'), cuenta: sv('999'), titular: sv('Asesor') } } } }), false);
 		await espera('el asesor cambia los datos de pago con su renglón', lote('asesor7', [ficha('Banco 2', 'pg1'), renglon('pg1', 'asesor7')]), false);
 		await espera('el administrador cambia los datos de pago sin su renglón', parche('admin1', 'propietarios/m1', ['datosPago'], { datosPago: sv('Banco 2') }), false);
 		await espera('el administrador anota otro «antes» del que había', lote('admin1', [ficha('Banco 2', 'pg2'), renglon('pg2', 'admin1', { antes: foto('Banco 0') })]), false);
@@ -1065,7 +1123,7 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	const auth = (quien) => (quien === 'dueño' ? { Authorization: 'Bearer owner' } : quien ? { Authorization: `Bearer ${jwt(quien)}` } : {});
 	const subir = (quien, ruta, tipo = 'image/png') => fetch(`${B}?uploadType=media&name=${encodeURIComponent(ruta)}`, { method: 'POST', headers: { 'Content-Type': tipo, ...auth(quien) }, body: png }).then((r) => r.status);
 	const listar = (quien, prefijo) => fetch(`${B}?prefix=${encodeURIComponent(prefijo)}`, { headers: auth(quien) }).then((r) => r.status);
-	const borrar = (quien, ruta) => fetch(`${B}/${encodeURIComponent(ruta)}`, { method: 'DELETE', headers: auth(quien) }).then((r) => r.status);
+	const borrar = (quien, ruta) => fetch(`${B}/${encodeURIComponent(ruta)}`, { method: 'DELETE', headers: auth(quien) }).then((r) => (r.status === 204 ? 200 : r.status));
 	const bajar = (ruta) => fetch(`${B}/${encodeURIComponent(ruta)}?alt=media`).then((r) => r.status);
 	await poner('users/asesor9', { rol: 'asesor', activo: true, agentId: 'a9', nombre: 'Asesor' });
 	await espera('storage: el administrador sube una foto de una casa', subir('admin1', 'properties/casa1/foto1.png'), true);
@@ -1084,6 +1142,37 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('storage: un asesor lista las carpetas de los chats', listar('asesor9', 'chats/'), false);
 	await espera('storage: el dueño reemplaza una foto del sitio', subir('mixto1', 'properties/casa1/foto1.png'), false);
 	await espera('storage: el dueño sube una foto al sitio', subir('mixto1', 'site/portada.png'), false);
+	// Las fotos de un pedido del dueño (pedidosDueno/{casa}/{pedido}/1…6): solo en la carpeta que el servidor le apartó a ÉL
+	// para esa casa (pedidosDueno/{pedido}), vigente (un día) y sin enviar; sin reemplazar; la quita (libera el número)
+	// mientras no la envía. No se abren por su dirección: el equipo y el dueño de la casa.
+	const apartado = (id, { casa = 'mx-venta', uid = 'mixto1', haceH = 0 } = {}) => fetch(`${H}/pedidosDueno/${id}`, { method: 'PATCH', headers: cab('dueño'),
+		body: JSON.stringify({ fields: { propietarioId: val('m1'), uid: val(uid), casa: val(casa), cuando: { timestampValue: new Date(Date.now() - haceH * 3600_000).toISOString() } } }) });
+	const bajarCon = (quien, ruta) => fetch(`${B}/${encodeURIComponent(ruta)}?alt=media`, { headers: auth(quien) }).then((r) => r.status);
+	await apartado('PedidoDeFotos0001');
+	await apartado('PedidoVencido0001', { haceH: 25 });
+	await apartado('PedidoDeOtroUid01', { uid: 'otro-uid' });
+	await espera('storage: la dueña sube la foto de su pedido', subir('mixto1', 'pedidosDueno/mx-venta/PedidoDeFotos0001/1.png'), true);
+	await espera('storage: la dueña reemplaza la foto de su pedido', subir('mixto1', 'pedidosDueno/mx-venta/PedidoDeFotos0001/1.png'), false);
+	await espera('storage: la dueña quita la foto antes de enviar (libera el número)', borrar('mixto1', 'pedidosDueno/mx-venta/PedidoDeFotos0001/1.png'), true);
+	await espera('storage: la dueña vuelve a subir en el número que quitó', subir('mixto1', 'pedidosDueno/mx-venta/PedidoDeFotos0001/1.png'), true);
+	await espera('storage: la dueña sube la 7.ª foto de un pedido', subir('mixto1', 'pedidosDueno/mx-venta/PedidoDeFotos0001/7.png'), false);
+	await espera('storage: la dueña sube una foto con otro nombre', subir('mixto1', 'pedidosDueno/mx-venta/PedidoDeFotos0001/portada.png'), false);
+	await espera('storage: la dueña sube un SVG a su pedido', subir('mixto1', 'pedidosDueno/mx-venta/PedidoDeFotos0001/2.svg', 'image/svg+xml'), false);
+	await espera('storage: la dueña sube a un pedido que el servidor no apartó (id inventado)', subir('mixto1', 'pedidosDueno/mx-venta/PedidoInventado01/1.png'), false);
+	await espera('storage: la dueña sube con su apartado a la carpeta de otra casa', subir('mixto1', 'pedidosDueno/prueba-casa-en-venta/PedidoDeFotos0001/1.png'), false);
+	await espera('storage: la dueña sube a un apartado vencido', subir('mixto1', 'pedidosDueno/mx-venta/PedidoVencido0001/1.png'), false);
+	await espera('storage: la dueña sube al apartado de otra sesión', subir('mixto1', 'pedidosDueno/mx-venta/PedidoDeOtroUid01/1.png'), false);
+	await espera('storage: un anónimo sube a un pedido', subir(null, 'pedidosDueno/mx-venta/PedidoDeFotos0001/2.png'), false);
+	await espera('storage: un asesor sube a la carpeta de un pedido', subir('asesor9', 'pedidosDueno/mx-venta/PedidoDeFotos0001/3.png'), false);
+	await apartado('PedidoYaEnviado01');
+	await espera('storage: la dueña sube la foto de otro pedido (control)', subir('mixto1', 'pedidosDueno/mx-venta/PedidoYaEnviado01/1.png'), true);
+	await poner('comentariosPropietarios/PedidoYaEnviado01', { propietarioId: 'm1', agentId: 'a7', propiedadId: 'mx-venta', tipo: 'cambios', texto: 'x', origen: 'propietario' });
+	await espera('storage: la dueña agrega una foto a un pedido ya enviado', subir('mixto1', 'pedidosDueno/mx-venta/PedidoYaEnviado01/2.png'), false);
+	await espera('storage: la dueña borra la foto de un pedido ya enviado', borrar('mixto1', 'pedidosDueno/mx-venta/PedidoYaEnviado01/1.png'), false);
+	await espera('storage: un anónimo abre la foto del pedido por su dirección', bajar('pedidosDueno/mx-venta/PedidoDeFotos0001/1.png'), false);
+	await espera('storage: otro dueño abre la foto del pedido', bajarCon('socio1', 'pedidosDueno/mx-venta/PedidoDeFotos0001/1.png'), false);
+	await espera('storage: el equipo abre la foto del pedido', bajarCon('asesor9', 'pedidosDueno/mx-venta/PedidoDeFotos0001/1.png'), true);
+	await espera('storage: la dueña abre la foto de su pedido', bajarCon('mixto1', 'pedidosDueno/mx-venta/PedidoDeFotos0001/1.png'), true);
 	await espera('storage: el dueño borra una foto del sitio', borrar('mixto1', 'properties/casa1/foto1.png'), false);
 	await espera('storage: el dueño sube una foto nueva de su casa por noche', subir('socio1', 'properties/prueba-casa-playa-monterrico/nueva1.png'), true);
 	await espera('storage: el dueño reemplaza esa foto', subir('socio1', 'properties/prueba-casa-playa-monterrico/nueva1.png'), false);
@@ -1156,7 +1245,6 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('storage: el cliente sube a un chat que no existe', subir(null, 'chats/NoExisteEsteChatLargoYAlAzar12/x.png'), false);
 	// La foto del chat no la abre nadie por Storage (ni sus datos, que traen el token de descarga): la sirve /api/foto.
 	const datos = (quien, ruta) => fetch(`${B}/${encodeURIComponent(ruta)}`, { headers: auth(quien) }).then((r) => r.status);
-	const bajarCon = (quien, ruta) => fetch(`${B}/${encodeURIComponent(ruta)}?alt=media`, { headers: auth(quien) }).then((r) => r.status);
 	await subir('dueño', `chats/${T}/de-antes.png`);
 	for (const [quien, nombre] of [[null, 'sin sesión (con el enlace del chat)'], ['socio1', 'el socio de la casa'], ['admin1', 'el administrador'], ['asesor9', 'un asesor']]) {
 		for (const ruta of ['fotosChat/lead-fotos/1', `chats/${T}/de-antes.png`]) {

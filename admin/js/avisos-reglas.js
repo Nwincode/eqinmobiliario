@@ -21,6 +21,16 @@ export function hace(desde, ahora = Date.now()) {
 // La foto: `fin` es el mensaje (otra foto nueva vuelve a avisar).
 export const claveListo = ({ tipo, objeto, fin }) => (tipo === 'exclusiva' || tipo === 'foto' ? `${tipo}_${objeto}_${fin}` : `${tipo}_${objeto}`);
 
+// Los pedidos de los dueños que esperan al equipo (la campana y «Cambios de los dueños», la misma lista): los de cambios,
+// de los últimos DIAS_COMENTARIO días y sin una aprobación más nueva de la misma casa; un cierre («ya se vendió») espera
+// hasta que se atienda, sin plazo (cambia la casa y Reportes: no se pierde solo). comentarios: los docs de comentariosPropietarios con
+// `fecha` en ms. (Los ya atendidos los quita quien llama, con avisosAtendidos.)
+const enPlazo = (c, ahora) => ahora - c.fecha <= DIAS_COMENTARIO * DIA;
+export function pedidosPorAtender(comentarios = [], ahora = Date.now()) {
+	return comentarios.filter((c) => c.fecha && (c.tipo === 'cierre' || (c.tipo === 'cambios' && enPlazo(c, ahora)
+		&& !comentarios.some((x) => x.tipo === 'aprobado' && x.propiedadId === c.propiedadId && x.fecha > c.fecha))));
+}
+
 const recorta = (t, n) => { const s = String(t || '').replace(/\s+/g, ' ').trim(); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
 const enlaceSolicitud = (codigo) => `#/solicitudes/${encodeURIComponent(codigo)}`;
 
@@ -37,7 +47,7 @@ function textoExclusiva(dias) {
 //  fotos:       [{ leadId, codigo, nombre, casa, mensaje, fecha, marca, n }] fotos del cliente ocultas al socio (la más nueva)
 //  comprobantes:[{ codigo, socio, casa, fecha }]                            pago a EQ subido, sin marcar pagado
 //  comisiones:  [{ codigo, casa, nivel, vence }]                            del socio: su pago a EQ vencido, sin comprobante
-//  comentarios: [{ id, propietarioId, dueno, casa, texto, fecha, agentId }] tipo «cambios»
+//  comentarios: [{ id, propietarioId, dueno, casa, texto, fecha, agentId, tipo, operacion }] pedidos por atender (pedidosPorAtender): «cambios» o «cierre»
 //  exclusivas:  [{ casaId, casa, dueno, fin, dias, agentId }]
 //  leads:       [{ id, nombre, casa, creado }]                              de la web, sin atender (estado «nuevo»)
 //  atendidos:   Set de claves con «Listo».
@@ -96,13 +106,16 @@ export function armarAvisos({ solicitudes = [], mensajes = [], fotos = [], compr
 		detalle: [c.codigo, c.casa, 'sube el comprobante'].filter(Boolean).join(' · ')
 	});
 	for (const c of comentarios) {
-		if (!c.fecha || ahora - c.fecha > DIAS_COMENTARIO * DIA) continue;
+		if (!c.fecha || (c.tipo !== 'cierre' && !enPlazo(c, ahora))) continue;
 		const listo = { tipo: 'cambios', objeto: c.id, agentId: c.agentId || '' };
 		const clave = claveListo(listo);
 		if (atendidos.has(clave)) continue;
+		// Se atiende en «Cambios de los dueños» (con su ficha, WhatsApp, «Aplicar» o «Listo»).
+		const cierre = c.tipo === 'cierre';
 		out.push({
-			clave, tipo: 'cambios', icono: 'icon-pencil', href: `#/propietarios/${encodeURIComponent(c.propietarioId)}`, fecha: c.fecha, urgente: false, listo,
-			titulo: `${c.dueno || 'Un dueño'} pide cambios`, detalle: [c.casa, c.texto ? `«${recorta(c.texto, 80)}»` : ''].filter(Boolean).join(': ')
+			clave, tipo: 'cambios', icono: cierre ? 'icon-flag-checkered' : 'icon-pencil', href: `#/cambios-dueno/${encodeURIComponent(c.id)}`, fecha: c.fecha, urgente: false, listo,
+			titulo: cierre ? `${c.dueno || 'Un dueño'} avisa que ${c.operacion === 'renta' ? 'ya se rentó' : 'ya se vendió'}` : `${c.dueno || 'Un dueño'} pide cambios`,
+			detalle: [c.casa, !cierre && c.texto ? `«${recorta(c.texto, 80)}»` : ''].filter(Boolean).join(': ')
 		});
 	}
 	for (const e of exclusivas) {
@@ -137,7 +150,7 @@ export function clavesPorRevisar({ solicitudes = [], fotos = [], comentarios = [
 	return [
 		...solicitudes.filter((s) => s.alerta === 'bloqueada' && s.leadId).map((s) => claveListo({ tipo: 'robo', objeto: s.leadId })),
 		...fotos.map((f) => claveListo({ tipo: 'foto', objeto: f.leadId, fin: f.mensaje })),
-		...comentarios.filter((c) => c.fecha && ahora - c.fecha <= DIAS_COMENTARIO * DIA).map((c) => claveListo({ tipo: 'cambios', objeto: c.id })),
+		...comentarios.filter((c) => c.fecha && (c.tipo === 'cierre' || enPlazo(c, ahora))).map((c) => claveListo({ tipo: 'cambios', objeto: c.id })),
 		...exclusivas.filter((e) => e.fin && enVentana(e.dias)).map((e) => claveListo({ tipo: 'exclusiva', objeto: e.casaId, fin: e.fin }))
 	];
 }

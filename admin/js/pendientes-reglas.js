@@ -1,10 +1,10 @@
 // Reglas de «Datos por completar», sin dependencias del navegador (se prueban en Node).
 // Para cambiar qué se pide, edita REGLAS.
 import { tieneCasasPorNoche } from './duenos.js';
+// Dónde se pide la zona (fuera de ahí basta el municipio): admin/js/lugares.js `pideZona`.
+import { pideZona } from './lugares.js';
 const vacio = (v) => v === undefined || v === null || String(v).trim() === '';
 const CON_CUARTOS = ['casa', 'apartamento'];
-// Ciudades donde se usa «zona»; fuera de ellas basta la ciudad.
-const CIUDADES_CON_ZONA = ['guatemala', 'ciudad de guatemala', 'mixco', 'villa nueva'];
 
 // Cada regla: [campo del formulario, texto que ve el usuario, función que dice si falta].
 export const REGLAS = {
@@ -20,8 +20,8 @@ export const REGLAS = {
 			// Sin precio del socio (privado/socio) la reserva de la web no tiene piso para su parte. Solo donde se cargó
 			// (la ficha y el listado del administrador traen `socio`; otras pantallas no lo leen).
 			['socio.precioBase', 'Precio por noche del socio', (p) => p.operacion === 'vacacional' && p.socio !== undefined && !(Number(p.socio?.precioBase) > 0)],
-			['ciudad', 'Ciudad o municipio', (p) => vacio(p.ciudad)],
-			['zona', 'Zona', (p) => vacio(p.zona) && CIUDADES_CON_ZONA.includes(String(p.ciudad || '').trim().toLowerCase())],
+			['ciudad', 'Municipio', (p) => vacio(p.ciudad)],
+			['zona', 'Zona', (p) => vacio(p.zona) && pideZona(p)],
 			['descripcion', 'Descripción', (p) => vacio(p.descripcion)],
 			['fotos', 'Fotos (al menos una)', (p) => !(Array.isArray(p.fotos) && p.fotos.length)],
 			// Quien busca dónde quedarse pregunta por cuartos y baños, no por los m² ni los parqueos.

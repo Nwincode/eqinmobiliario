@@ -7,6 +7,7 @@ import { RUTAS } from './i18n.mjs';
 import { montoPrecio } from '../../admin/js/formato.js';
 import { precioVisible } from '../../admin/js/estados.js';
 import { sinRepetir, TITULO_MAX } from '../../admin/js/seo-auto.js';
+import { esCapital, municipioDe } from '../../admin/js/lugares.js';
 
 // Una página de zona (zona, zona + operación, zona + tipo + operación) se indexa solo con al menos tantas
 // propiedades a la vista; con menos es «poco contenido» para Google. Con menos, la zona sola existe sin indexar
@@ -31,10 +32,14 @@ export const slugZona = (nombre) => {
 // Una zona, una sola forma de escribirla: «Zona 10», «zona 10» y «Zona 10 » darían la misma dirección
 // (/propiedades/zona-10/) y se pisarían, y el filtro de zona mostraría opciones repetidas. Se recortan los espacios y
 // cada zona queda con la forma más usada (empate: la primera). Cambia `zona` en las casas y las devuelve.
+// Fuera de la capital la aldea o colonia es opcional (admin/js/lugares.js `pideZona`): sin ella, la casa se lista con su
+// municipio, con el nombre de la tabla (como se hacía escribiendo «Antigua Guatemala» en la zona) y no se queda sin
+// página de zona. Vale también para las casas de antes que no tenían zona.
+const espacios = (x) => String(x || '').trim().replace(/\s+/g, ' ');
 export function unificarZonas(props) {
 	const formas = new Map();
 	for (const p of props) {
-		p.zona = String(p.zona || '').trim().replace(/\s+/g, ' ');
+		p.zona = espacios(p.zona) || (esCapital(p) ? '' : municipioDe(p.ciudad, p.departamento)?.municipio || espacios(p.ciudad));
 		if (!p.zona) continue;
 		const s = slugZona(p.zona);
 		if (!formas.has(s)) formas.set(s, new Map());

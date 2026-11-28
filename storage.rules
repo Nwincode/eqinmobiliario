@@ -59,13 +59,13 @@ service firebase.storage {
       allow list: if conSesion() && usuario().rol == 'admin';
     }
     match /{carpeta}/{resto=**} {
-      allow get: if !(carpeta in ['chats', 'fotosChat', 'comprobantes']);
+      allow get: if !(carpeta in ['chats', 'fotosChat', 'comprobantes', 'pedidosDueno']);
       allow list: if conSesion() && usuario().rol == 'admin';
     }
     // Las fotos del sitio (contenido, asesores…), cada una en su carpeta: el equipo.
     // Las de una propiedad y los comprobantes (chats, comprobantes), solo con su regla.
     match /{carpeta}/{resto=**} {
-      allow write: if isStaff() && !(carpeta in ['chats', 'fotosChat', 'comprobantes', 'properties'])
+      allow write: if isStaff() && !(carpeta in ['chats', 'fotosChat', 'comprobantes', 'properties', 'pedidosDueno'])
         && (request.resource == null || foto(10));
     }
     // Fotos de una propiedad: el administrador o el asesor de esa casa. La ficha sube las fotos de una casa nueva antes
@@ -77,6 +77,31 @@ service firebase.storage {
           || !firestore.exists(/databases/(default)/documents/properties/$(casa))
           || firestore.get(/databases/(default)/documents/properties/$(casa)).data.get('agentId', '')
              == (usuario().get('agentId', '') == '' ? '(sin asesor)' : usuario().agentId));
+    }
+    // Las fotos de un pedido del dueño sobre SU casa en venta o renta («Pedir un cambio», admin/js/pedido-dueno.js): en la
+    // carpeta que el servidor le apartó a él para ese pedido y esa casa (pedidosDueno/{pedido}, /api/pedido-dueno, que
+    // revisa que la casa sea suya y no por noche, con un tope de pedidos abiertos), numeradas del 1 al 6, mientras esté
+    // vigente (un día) y el pedido no se haya enviado (comentariosPropietarios/{pedido}, el mismo id; firestore.rules ata
+    // cada ruta del pedido a esta carpeta). Mientras tanto también las quita (así la ✕ libera su número); enviado, nadie las
+    // cambia. Lo vencido lo barre cada hora netlify/lib/pedidos-dueno.mjs. No se abren por su dirección: solo el equipo
+    // y el dueño de la casa (el panel las abre con su enlace).
+    function pedidoApartado(casa, pedido) {
+      return conSesion() && usuario().rol == 'socio'
+        && firestore.exists(/databases/(default)/documents/pedidosDueno/$(pedido))
+        && firestore.get(/databases/(default)/documents/pedidosDueno/$(pedido)).data.get('propietarioId', '') == usuario().get('propietarioId', '-')
+        && firestore.get(/databases/(default)/documents/pedidosDueno/$(pedido)).data.get('uid', '') == request.auth.uid
+        && firestore.get(/databases/(default)/documents/pedidosDueno/$(pedido)).data.get('casa', '') == casa
+        && firestore.get(/databases/(default)/documents/pedidosDueno/$(pedido)).data.cuando + duration.value(1, 'd') > request.time
+        && !firestore.exists(/databases/(default)/documents/comentariosPropietarios/$(pedido));
+    }
+    match /pedidosDueno/{casa}/{pedido}/{archivo} {
+      allow create: if resource == null && foto(10)
+        && archivo.matches('[1-6][.](webp|jpg|png)')
+        && pedidoApartado(casa, pedido);
+      allow delete: if pedidoApartado(casa, pedido);
+      allow get: if isStaff()
+        || (conSesion() && usuario().rol == 'socio'
+          && firestore.get(/databases/(default)/documents/properties/$(casa)).data.get('propietarioId', '') == usuario().get('propietarioId', '-'));
     }
     // El dueño de una casa por noche sube fotos nuevas de SU casa (admin/js/views/mis-casas.js → «La casa»). Solo
     // agrega: no reemplaza ni borra (el administrador puede deshacer su cambio y volver a las de antes).

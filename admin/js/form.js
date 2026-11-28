@@ -1,13 +1,17 @@
 // Generador de formularios a partir de un esquema. Se usa en todas las secciones del panel.
 //
 // Tipos de campo: text, email, url, tel, number, textarea, markdown, select, checkbox,
-// tags (lista de textos), image (una imagen), images (galería), list (lista de objetos), section (título).
-// Opciones comunes: name ('a.b' para anidar), label, help, required, cols (1-12), placeholder, ordenar (list: false sin ↑↓), encabezado (list: false, sin su fila; ✕ en la esquina), colsCelular (12: a lo ancho en el celular),
+// tags (lista de textos; con `lista`, chips en la caja y opciones al escribir), image (una imagen), images (galería),
+// list (lista de objetos), section (título), sugerido (texto con opciones agrupadas que se filtran al escribir: `opciones(data)`,
+// `libre`, `mostrar(data)`, `elegir(opción, data)`; pieza admin/js/sugerido.js) y opciones (una de pocas con su línea:
+// options [[valor, título, línea]]).
+// Opciones comunes: name ('a.b' para anidar), label, etiqueta(data) (la etiqueta que se ve, si cambia), help, required (o required(data)), cols (1-12), placeholder, ordenar (list: false sin ↑↓), encabezado (list: false, sin su fila; ✕ en la esquina), colsCelular (12: a lo ancho en el celular),
 // when(data) para mostrar el campo solo en ciertos casos.
 import { h, toast, showError, iconoBtn } from './ui.js';
 import { CODIGOS_PAIS, partirTelefono, unirTelefono, correoValido, telefonoValido, sugerenciaCorreo } from './formato.js';
 import { storage, db, ref, uploadBytes, getDownloadURL, getMetadata, deleteObject, collection, getDocs } from './firebase.js';
 import { procesarImagen as procesar } from './imagen.js';
+import { campoSugerido } from './sugerido.js';
 
 export function getPath(obj, path) {
 	return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
@@ -46,19 +50,20 @@ export function procesarImagen(file, maxSize, quality, { marca = false } = {}) {
 // `numerada`: el archivo se llama 1 a 40 (el primer número libre de la carpeta): la carpeta de la casa nueva del socio
 // (storage.rules no le deja más de 40 ni otro nombre).
 export const MAX_NUMERADAS = 40;
-async function numeroLibre(folder, ext) {
-	for (let n = 1; n <= MAX_NUMERADAS; n++) {
+async function numeroLibre(folder, ext, maximo = MAX_NUMERADAS) {
+	for (let n = 1; n <= maximo; n++) {
 		const path = `${folder}/${n}.${ext}`;
 		try { await getMetadata(ref(storage, path)); } catch (err) { if (err?.code === 'storage/object-not-found') return path; throw err; }
 	}
-	throw new Error(`Ya subiste ${MAX_NUMERADAS} fotos a esta casa: quita las que no vayan y publica con esas.`);
+	throw new Error(maximo === MAX_NUMERADAS ? `Ya subiste ${MAX_NUMERADAS} fotos a esta casa: quita las que no vayan y publica con esas.` : `Ya subiste ${maximo} fotos: es el máximo.`);
 }
-export async function uploadImage(file, folder, procesada, opciones, { sinEnlace = false, numerada = false } = {}) {
+// numerada: nombre 1, 2, 3… en su carpeta (las reglas de Storage lo exigen donde sube el dueño); maximo: hasta cuántas.
+export async function uploadImage(file, folder, procesada, opciones, { sinEnlace = false, numerada = false, maximo = MAX_NUMERADAS } = {}) {
 	if (!storage) throw new Error('No se pueden subir imágenes: al sitio le falta la configuración de las fotos de Firebase. Avísale a quien lo programa.');
 	const { blob, ancho, alto, hash, marca } = procesada || await procesarImagen(file, undefined, undefined, opciones);
 	const ext = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/png' ? 'png' : 'jpg';
 	const base = (file.name || 'foto').replace(/\.[^.]+$/, '').normalize('NFD').replace(/[^\w-]+/g, '-').slice(0, 40);
-	const path = numerada ? await numeroLibre(folder, ext) : `${folder}/${Date.now()}-${base}.${ext}`;
+	const path = numerada ? await numeroLibre(folder, ext, maximo) : `${folder}/${Date.now()}-${base}.${ext}`;
 	const r = ref(storage, path);
 	await uploadBytes(r, blob, { contentType: blob.type, cacheControl: 'public, max-age=31536000' });
 	return { url: sinEnlace ? '' : await getDownloadURL(r), path, ancho, alto, hash, ...(marca ? { marca: true } : {}) };
@@ -89,12 +94,15 @@ export async function borrarFotosSinUso(paths, excluirId = '') {
 	await Promise.all(lista.filter((r) => !usadas.has(r)).map(deleteImage));
 }
 
-export async function deleteImage(path) {
+// lanzar: el error sube a quien llama (p. ej. la ✕ de un pedido, que solo quita la foto si se borró).
+export async function deleteImage(path, { lanzar = false } = {}) {
 	if (!storage || !path) return;
 	try {
 		await deleteObject(ref(storage, path));
 	} catch (err) {
-		if (err.code !== 'storage/object-not-found') console.warn('No se pudo borrar la imagen', path, err);
+		if (err.code === 'storage/object-not-found') return;
+		if (lanzar) throw err;
+		console.warn('No se pudo borrar la imagen', path, err);
 	}
 }
 
@@ -243,10 +251,13 @@ export function renderForm(schema, data, options = {}) {
 	// Selectores cuyas opciones dependen del estado: van primero, porque pueden cambiar un valor del que depende un «when».
 	const vivos = [];
 	const anchos = [];
+	const etiquetas = [];
+	const obligatorio = (field) => (typeof field.required === 'function' ? field.required(state) : Boolean(field.required));
 	const anchoDe = (field) => (typeof field.cols === 'function' ? field.cols(state) : field.cols) || 12;
 	const refresh = () => {
 		vivos.forEach((pintar) => pintar());
 		anchos.forEach(({ el, field }) => { el.className = el.className.replace(/\bcol-md-\d+/, `col-md-${anchoDe(field)}`); });
+		etiquetas.forEach((pintar) => pintar());
 		conditionals.forEach(({ el, when }) => { el.hidden = !when(state); });
 		customs.forEach(({ el, update }) => update(el, state));
 		if (options.onChange) options.onChange(state);
@@ -256,11 +267,14 @@ export function renderForm(schema, data, options = {}) {
 		const id = `f-${Math.random().toString(36).slice(2, 9)}`;
 		if (control.matches && control.matches('input, select, textarea')) control.id = id;
 		// Teléfono: la etiqueta apunta al número (el código lleva su propio nombre); correo: al campo, no a su pista.
-		if (field.type === 'telefono' || field.type === 'email') control.querySelector('input').id = id;
+		if (['telefono', 'email', 'sugerido'].includes(field.type) || (field.type === 'tags' && field.lista)) control.querySelector('input').id = id;
 		const label = field.type === 'checkbox' ? null : h('label', { class: 'form-label', for: id }, field.label, field.required ? ' *' : '');
+		// Etiqueta u obligatorio que dependen de otro campo (p. ej. «Zona» en la capital, «Aldea / colonia (opcional)» fuera):
+		// se repinta con cada cambio.
+		if (label && (field.etiqueta || typeof field.required === 'function')) etiquetas.push(() => { label.textContent = `${field.etiqueta ? field.etiqueta(state) : field.label}${obligatorio(field) ? ' *' : ''}`; });
 		// En el celular, un campo corto sin ayuda va de dos en dos (números, horas, listas cortas); lo demás, a lo ancho.
 		// (colsCelular: 12 lo deja a lo ancho, p. ej. una dirección).
-		const corto = !field.help && field.colsCelular !== 12 && anchoDe(field) <= 4 && !['textarea', 'markdown', 'list', 'tags', 'checkbox', 'telefono', 'email', 'url', 'image', 'images', 'color'].includes(field.type);
+		const corto = !field.help && field.colsCelular !== 12 && anchoDe(field) <= 4 && !['textarea', 'markdown', 'list', 'tags', 'checkbox', 'telefono', 'email', 'url', 'image', 'images', 'color', 'sugerido', 'opciones'].includes(field.type);
 		const caja = h('div', { class: `${corto ? 'col-6' : 'col-12'} col-md-${anchoDe(field)}`, dataset: field.name ? { campo: field.name } : null },
 			label, control,
 			field.help ? h('div', { class: 'form-text' }, field.help) : null);
@@ -365,15 +379,54 @@ export function renderForm(schema, data, options = {}) {
 				break;
 			}
 
+			// Texto con sus opciones (municipio, zona, siglas): lo elegido lo pone `elegir` (o el valor de la opción en el
+			// campo); con `libre`, lo escrito que no es una opción también se guarda.
+			case 'sugerido': {
+				// Las opciones con el valor que tenía al entrar al campo (lo que se va escribiendo no es una opción guardada).
+				const conAntes = (antes) => { if (!field.libre) return state; const copia = clonar(state); setPath(copia, field.name, antes); return copia; };
+				const s = campoSugerido({ grupos: (antes) => field.opciones(conAntes(antes)), libre: field.libre, placeholder: field.placeholder,
+					mostrado: () => String((field.mostrar ? field.mostrar(state) : get()) ?? ''),
+					alElegir: (o) => { if (field.elegir) field.elegir(o, state); else setPath(target, field.name, o ? o.valor ?? o.texto : ''); refresh(); },
+					alEscribir: (t) => { setPath(target, field.name, t); refresh(); },
+					alTeclear: field.libre ? (t) => { setPath(target, field.name, t); refresh(); } : null });
+				if (field.disabled) s.input.disabled = true;
+				if (field.maxlength) s.input.maxLength = field.maxlength;
+				if (target === state) pintores.set(field.name, s.pintar);
+				// Lo que se muestra puede depender de otro campo: se repinta con cada cambio.
+				customs.push({ el: s.el, update: s.pintar });
+				control = s.el;
+				break;
+			}
+
+			// Una de pocas, cada una con su línea de qué significa (p. ej. la política de cancelación).
+			case 'opciones': {
+				const nombre = `op-${Math.random().toString(36).slice(2, 9)}`;
+				if (get() === undefined && field.default !== undefined) setPath(target, field.name, field.default);
+				const radios = field.options.map(([v, titulo, linea]) => {
+					const input = h('input', { class: 'form-check-input', type: 'radio', name: nombre, value: v });
+					input.checked = (get() ?? field.default) === v;
+					input.addEventListener('change', () => { if (input.checked) set(v); });
+					return h('label', {}, input, h('div', {}, h('b', {}, titulo), linea ? h('span', {}, linea) : null));
+				});
+				control = h('div', { class: 'opciones', role: 'radiogroup', 'aria-label': field.label }, radios);
+				if (target === state) pintores.set(field.name, () => radios.forEach((l) => { const i = l.querySelector('input'); i.checked = get() === i.value; }));
+				break;
+			}
+
 			case 'tags': {
 				const list = h('div', { class: 'd-flex flex-wrap gap-2 mb-2' });
-				const input = h('input', { class: 'form-control', placeholder: field.placeholder || 'Escribe y presiona Enter', 'aria-label': `${field.label}: agregar` });
+				// Con `lista` (opciones agrupadas, p. ej. zonas de interés): los chips y lo que se escribe en una sola caja, y al
+				// escribir salen las opciones (pieza «sugerido»).
+				const caja = field.lista ? h('div', { class: 'form-control tags-caja' }) : null;
+				const input = h('input', { class: caja ? 'tags-input' : 'form-control', placeholder: field.placeholder || 'Escribe y presiona Enter', 'aria-label': `${field.label}: agregar` });
 				const sugeridas = h('div', { class: 'd-flex flex-wrap gap-1 mt-2' });
 				const draw = () => {
 					const puestas = (get() || []).map((t) => t.toLowerCase());
 					sugeridas.replaceChildren(...((typeof field.sugerencias === 'function' ? field.sugerencias(state) : field.sugerencias) || []).filter((s) => !puestas.includes(s.toLowerCase())).map((s) => h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', onclick: () => { set([...(get() || []), s]); draw(); } }, `+ ${s}`)));
-					list.replaceChildren(...(get() || []).map((t, i) => h('span', { class: 'badge text-bg-light border d-inline-flex align-items-center gap-1 fw-normal fs-6' }, t,
-						h('button', { type: 'button', class: 'btn-close btn-close-sm', style: 'font-size:.6rem', 'aria-label': `Quitar ${t}`, onclick: () => { const arr = [...(get() || [])]; arr.splice(i, 1); set(arr); draw(); } }))));
+					const chips = (get() || []).map((t, i) => h('span', { class: 'tag-chip' }, t,
+						h('button', { type: 'button', class: 'tag-chip-x', 'aria-label': `Quitar ${t}`, title: `Quitar ${t}`, onclick: () => { const arr = [...(get() || [])]; arr.splice(i, 1); set(arr); draw(); } },
+							h('span', { class: 'icon-close', 'aria-hidden': 'true' }))));
+					if (caja) caja.replaceChildren(...chips, input); else list.replaceChildren(...chips);
 				};
 				const add = () => {
 					const vals = input.value.split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
@@ -382,13 +435,20 @@ export function renderForm(schema, data, options = {}) {
 					input.value = '';
 					draw();
 				};
-				input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
-				input.addEventListener('blur', add);
+				let sug = null;
+				if (caja) {
+					const sumar = (t) => { if (t && !(get() || []).some((x) => x.toLowerCase() === t.toLowerCase())) set([...(get() || []), t]); draw(); };
+					sug = campoSugerido({ input, libre: true, grupos: () => field.lista(state), alElegir: (o) => sumar(o?.texto), alEscribir: sumar });
+					caja.addEventListener('click', (e) => { if (e.target === caja) input.focus(); });
+				} else {
+					input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+					input.addEventListener('blur', add);
+				}
 				draw();
 				if (target === state) pintores.set(field.name, draw);
 				// Sugerencias que dependen de otro campo: se vuelven a pintar con cada cambio.
 				if (typeof field.sugerencias === 'function') customs.push({ el: sugeridas, update: draw });
-				control = h('div', {}, list, input, sugeridas);
+				control = caja ? (sug.el.prepend(caja), sug.el) : h('div', {}, list, input, sugeridas);
 				break;
 			}
 
@@ -426,10 +486,25 @@ export function renderForm(schema, data, options = {}) {
 			}
 
 			case 'images': {
-				const grid = h('div', { class: 'images-grid' });
+				// simple: fotos que acompañan un pedido (p. ej. «Pedir un cambio» del dueño): sin portada, descripción ni flechas;
+				// solo ✕ quitar y la casilla «+ cámara» al final, del tamaño de una foto. max: hasta cuántas.
+				const grid = h('div', { class: `images-grid${field.simple ? ' images-simple' : ''}` });
 				const status = h('span', { class: 'small text-muted' });
 				const draw = () => {
 					const arr = get() || [];
+					if (field.simple) {
+						grid.replaceChildren(...arr.map((img, i) => h('div', { class: 'images-grid-item' }, h('img', { src: img.url, alt: '' }),
+							h('button', { type: 'button', class: 'images-quitar', 'aria-label': `Quitar la foto ${i + 1}`, title: 'Quitar foto', onclick: async (e) => {
+								// borrarAlQuitar: el archivo se borra en el momento (así su número queda libre para la siguiente).
+								e.currentTarget.disabled = true;
+								try { if (field.borrarAlQuitar) await deleteImage(img.path, { lanzar: true }); } catch (err) { e.currentTarget.disabled = false; return showError(err); }
+								arr.splice(arr.indexOf(img), 1); set(arr); draw();
+							} },
+								h('span', { class: 'icon-close', 'aria-hidden': 'true' })))),
+						field.max && arr.length >= field.max ? null : h('button', { type: 'button', class: 'images-grid-item images-agregar', 'aria-label': 'Agregar fotos', title: 'Agregar fotos', onclick: () => fi.click() },
+							h('span', { class: 'icon-plus', 'aria-hidden': 'true' }), h('span', { class: 'icon-camera', 'aria-hidden': 'true' })));
+						return;
+					}
 					grid.replaceChildren(...arr.map((img, i) => {
 						const alt = h('input', { class: 'form-control form-control-sm', placeholder: 'Descripción (SEO)', value: img.alt || '' });
 						alt.addEventListener('input', () => { img.alt = alt.value; });
@@ -497,9 +572,11 @@ export function renderForm(schema, data, options = {}) {
 				const fi = fileInput(true, async (files) => {
 					const arr = get() || [];
 					for (let n = 0; n < files.length; n++) {
+						if (field.max && arr.length >= field.max) { toast(`Hasta ${field.max} fotos.`, 'warning'); break; }
 						status.textContent = `Subiendo ${n + 1} de ${files.length}…`;
 						try {
-							arr.push({ ...(await uploadImage(files[n], field.folder || folder, null, { marca: Boolean(field.marcaFija) || !!marcaChk?.checked }, { numerada: Boolean(field.numeradas) })), alt: '' });
+							arr.push({ ...(await uploadImage(files[n], typeof field.folder === 'function' ? field.folder() : field.folder || folder, null, { marca: Boolean(field.marcaFija) || !!marcaChk?.checked },
+								{ numerada: Boolean(field.numeradas), ...(field.maxSubidas ? { maximo: field.maxSubidas } : {}) })), alt: '' });
 							set(arr);
 							draw();
 						} catch (err) {
@@ -510,7 +587,7 @@ export function renderForm(schema, data, options = {}) {
 					status.textContent = '';
 				});
 				draw();
-				control = h('div', {}, grid,
+				control = field.simple ? h('div', {}, grid, status, fi) : h('div', {}, grid,
 					h('div', { class: 'd-flex align-items-center flex-wrap gap-2 mt-2' },
 						h('button', { type: 'button', class: 'btn btn-outline-primary', onclick: () => fi.click() }, '+ Agregar fotos'),
 						marcaChk ? h('div', { class: 'form-check mb-0 ms-1' }, marcaChk,
@@ -608,7 +685,7 @@ export function renderForm(schema, data, options = {}) {
 			el.querySelectorAll('.is-invalid').forEach(quitarMarca);
 			const errores = [];
 			for (const { field, target, control } of required) {
-				if (vacio(getPath(target, field.name))) errores.push({ control, msg: `Completa «${field.label}».` });
+				if (obligatorio(field) && vacio(getPath(target, field.name))) errores.push({ control, msg: `Completa «${field.label}».` });
 			}
 			for (const { field, target, control } of conLimites) {
 				const v = getPath(target, field.name);

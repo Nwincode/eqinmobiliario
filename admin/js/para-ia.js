@@ -10,7 +10,7 @@ import { primerNombre } from './formato.js';
 const CAMPOS = ['id', 'slug', 'vip', 'codigo', 'titulo', 'descripcion', 'operacion', 'tipo', 'estado', 'precio', 'moneda',
 	'zona', 'ciudad', 'direccion', 'habitaciones', 'banos', 'parqueos', 'm2Construccion', 'm2Terreno', 'niveles',
 	'anioConstruccion', 'mantenimiento', 'amenidades', 'destacada'];
-const VACACIONAL = ['base', 'finde', 'nochesMin', 'huespedesMax', 'checkIn', 'checkOut', 'camas', 'mascotas', 'comoLlegar', 'reglas', 'cancelacion'];
+const VACACIONAL = ['base', 'finde', 'nochesMin', 'huespedesMax', 'checkIn', 'checkOut', 'camas', 'mascotas', 'comoLlegar', 'reglas', 'cancelacion', 'cancelacionPolitica'];
 const VIP = ['titular', 'subtitular', 'puntosClave', 'ctaTexto', 'ocultarPrecio'];
 const SEO = ['titulo', 'descripcion'];
 

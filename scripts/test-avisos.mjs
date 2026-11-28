@@ -1,6 +1,7 @@
 // Pruebas de admin/js/avisos-reglas.js: qué avisos salen en la campana, en qué orden y cuándo se van.
 import assert from 'node:assert/strict';
-import { armarAvisos, clavesPorRevisar, claveListo, hace } from '../admin/js/avisos-reglas.js';
+import { readFileSync } from 'node:fs';
+import { armarAvisos, clavesPorRevisar, claveListo, hace, pedidosPorAtender } from '../admin/js/avisos-reglas.js';
 
 const AHORA = Date.parse('2026-11-17T12:00:00-06:00');
 const H = 3600000, D = 24 * H;
@@ -55,9 +56,30 @@ prueba('pedido de cambios del dueño: de los últimos 30 días, con su texto y �
 		{ id: 'c2', propietarioId: 'p1', dueno: 'Carlos', texto: 'Viejo', fecha: AHORA - 40 * D, agentId: 'a1' }];
 	const a = armarAvisos({ ahora: AHORA, comentarios: c });
 	assert.equal(a.length, 1);
-	assert.equal(a[0].href, '#/propietarios/p1');
+	// Se atiende en «Cambios de los dueños» (antes llevaba a la ficha del dueño, sin dónde marcarlo).
+	assert.equal(a[0].href, '#/cambios-dueno/c1');
 	assert.match(a[0].detalle, /Casa Antigua: «Cambien la foto/);
 	assert.equal(armarAvisos({ ahora: AHORA, comentarios: c, atendidos: new Set(['cambios_c1']) }).length, 0);
+});
+
+prueba('«Ya se vendió» del dueño: avisa con su casa y la misma «Listo»; la aprobación del anuncio no lo esconde', () => {
+	const c = [{ id: 'v1', propietarioId: 'p1', dueno: 'Carlos', casa: 'Casa Antigua', texto: '', fecha: AHORA - D, agentId: 'a1', tipo: 'cierre', operacion: 'venta' }];
+	const a = armarAvisos({ ahora: AHORA, comentarios: c });
+	assert.equal(a[0].titulo, 'Carlos avisa que ya se vendió');
+	assert.equal(a[0].href, '#/cambios-dueno/v1');
+	assert.equal(a[0].clave, 'cambios_v1');
+	assert.equal(armarAvisos({ ahora: AHORA, comentarios: [{ ...c[0], operacion: 'renta' }] })[0].titulo, 'Carlos avisa que ya se rentó');
+	const lista = [
+		{ id: 'cam', tipo: 'cambios', propiedadId: 'x', fecha: AHORA - 3 * D },
+		{ id: 'cie', tipo: 'cierre', propiedadId: 'x', fecha: AHORA - 3 * D },
+		{ id: 'ok', tipo: 'aprobado', propiedadId: 'x', fecha: AHORA - D },
+		{ id: 'viejo', tipo: 'cierre', propiedadId: 'y', fecha: AHORA - 40 * D },
+		{ id: 'camViejo', tipo: 'cambios', propiedadId: 'z', fecha: AHORA - 40 * D }];
+	// La campana y «Cambios de los dueños» salen de la misma lista. Un cierre sin atender no se pierde a los 30 días.
+	assert.deepEqual(pedidosPorAtender(lista, AHORA).map((x) => x.id), ['cie', 'viejo']);
+	const viejo = { id: 'viejo', dueno: 'Carlos', fecha: AHORA - 40 * D, agentId: 'a1', tipo: 'cierre', operacion: 'venta' };
+	assert.equal(armarAvisos({ ahora: AHORA, comentarios: [viejo] }).length, 1);
+	assert.deepEqual(clavesPorRevisar({ ahora: AHORA, comentarios: [viejo] }), ['cambios_viejo']);
 });
 
 prueba('exclusiva: de 30 días antes a 30 después; renovada (otra fecha) vuelve a avisar', () => {
@@ -126,6 +148,28 @@ prueba('una foto del cliente oculta al socio: aviso al equipo que lleva al chat 
 	assert.equal(armarAvisos({ ahora: AHORA, fotos: [{ ...f, leadId: 'lead-con_raya' }] })[0].clave, 'foto_lead-con_raya_m7');
 	// Otra foto nueva vuelve a avisar.
 	assert.equal(armarAvisos({ ahora: AHORA, fotos: [{ ...f, mensaje: 'm8', n: 2 }], atendidos: new Set(['foto_l1_m7']) })[0].titulo, '2 fotos de Ana ocultas al socio');
+});
+
+prueba('Pedidos del dueño: una sola puerta, fotos solo si hay, y el equipo (también el asesor) los atiende en Cambios de los dueños', () => {
+	const f = (r) => readFileSync(new URL(`../admin/js/${r}`, import.meta.url), 'utf8');
+	assert.doesNotMatch(f('resumen-casa.js'), /Quiero cambios/);
+	assert.match(f('resumen-casa.js'), /Sí, de acuerdo/);
+	const pedido = f('pedido-dueno.js');
+	// Sin fotos, sin la llave (las reglas publicadas antes no la conocen).
+	assert.match(pedido, /\.\.\.\(fotos\.length \? \{ fotos \} : \{\}\)/);
+	// La carpeta la aparta el servidor (/api/pedido-dueno) y la ✕ borra la foto (libera su número).
+	assert.match(pedido, /\(\{ id, fotos: ya \} = await apartarPedido\(p\.id\)\)/);
+	assert.match(pedido, /borrarAlQuitar: true,\s*folder: `pedidosDueno\/\$\{p\.id\}\/\$\{id\}`/);
+	// El equipo revisa la fecha y el precio antes de aplicar (la misma ventana del dueño) y solo aplica quien puede.
+	const cd = f('views/cambios-dueno.js');
+	assert.match(cd, /ventanaCierre\(\{ titulo: `Aplicar: /);
+	assert.match(cd, /const previo = \(await getDoc\(refCierre\)\)\.data\(\) \|\| null;/);
+	assert.doesNotMatch(cd, /getDoc\(refCierre\)\.catch/);
+	assert.match(cd, /session\.isAdmin \|\| Boolean\(casa\?\.agentId && casa\.agentId === session\.agentId\)/);
+	assert.match(f('views/mis-casas.js'), /accionesPedido\(resumen, p\)/);
+	assert.match(f('app.js'), /\{ path: 'cambios-dueno', label: 'Cambios de los dueños', icon: 'icon-pencil', group: 'Personas', oculta: true,/);
+	// El asesor no llama a /api/mi-casa (solo el administrador): sus pedidos salen de la base.
+	assert.match(f('views/cambios-dueno.js'), /session\.isAdmin \? api\('GET'\) : \{ cambios: \[\] \}/);
 });
 
 console.log(`\n${n} pruebas de avisos bien.`);

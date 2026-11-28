@@ -88,6 +88,9 @@
 .hilo-tarj h3 { font-size: 14px; line-height: 20px; font-weight: 600; margin: 0; }
 .hilo-tarj p { color: var(--eq-ink); margin: 0; white-space: pre-wrap; }
 .hilo-tarj a { color: var(--eq-primary); display: inline-block; padding: 14px 0; margin: -14px 0; }
+/* Título de la tarjeta con su ícono (p. ej. copiar los datos de pago) en la esquina: el área de 44 px no agranda la fila. */
+.hilo-tarj-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -12px -12px 0 0; }
+.hilo-tarj p b { color: var(--eq-dark); }
 .hilo-tarj-fila { display: flex; gap: 8px; margin-top: 8px; }
 .hilo-tarj-fila .hilo-btn { flex: 1; }
 .hilo-comp { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }

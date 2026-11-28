@@ -14,7 +14,9 @@ import { pedirIA } from '../ia.js';
 import { tituloEn, tituloEnViejo, enCorregido } from '../reglas.js';
 import { updateDoc, SITIO } from '../firebase.js';
 import { ESTADOS_PROPIEDAD, amenidadesPara, amenidadesEnDe, precioVisible, textosConPrecioOculto, mascotasUnaVez, estadosPara, tipoAplica, incoherencia, OPERACIONES, TIPOS, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
-import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '../importar.js';
+import { generarCodigo, normalizarCodigo, siglasCondominio, opcionesSiglas, PLANTILLA } from '../importar.js';
+import { opcionesMunicipio, opcionesZona, municipioTexto, municipioDe, esCapital, pideZona, departamentoDe, mismoMunicipio, nombreRepetido } from '../lugares.js';
+import { opcionesCancelacion } from '../cancelacion.js';
 import { revisar, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
 import { generarDescripcion } from '../descripcion.js';
@@ -22,6 +24,7 @@ import { miles, dinero, whatsappUrl, slugLibre } from '../formato.js';
 import { filaCasa, publicUrl } from '../ficha-casa.js';
 import { sinTildes, REGIMENES, MODOS } from '../cotizacion.js';
 import { acuerdoDe, acuerdoHeredado, camposDelAcuerdo, CAMPOS_ACUERDO } from '../acuerdo.js';
+import { estaCerrada, faltaEnCierre, cierrePorGuardar } from '../cierre-casa.js';
 import { loadPropietarios } from '../crm.js';
 import { asignarDueno, confirmarCambioDeDueno, revisarSinDueno } from '../enlace-dueno.js';
 import { deLaCasa, porVenir, avisoPorVenir, refContacto, alDiaEnLaWeb } from '../reservas.js';
@@ -215,7 +218,7 @@ export async function eliminarPropiedad(p) {
 		.then((s) => s.docs.map((d) => d.ref), (err) => { console.warn(`No se pudo leer ${c} de la casa`, err); return []; })))).flat();
 	const lote = writeBatch(db);
 	contactos.slice(sobran.length).forEach((ref) => lote.delete(ref));
-	for (const privado of ['socio', 'llegada', 'acuerdo', 'calendario', 'icalLeido']) lote.delete(doc(db, 'properties', p.id, 'privado', privado));
+	for (const privado of ['socio', 'llegada', 'acuerdo', 'calendario', 'icalLeido', 'cierre']) lote.delete(doc(db, 'properties', p.id, 'privado', privado));
 	apartados.forEach((ref) => lote.delete(ref));
 	lote.delete(doc(db, 'properties', p.id));
 	await lote.commit();
@@ -295,7 +298,10 @@ export { guardarPrivadoVacacional, crearCasa };
 //  - cambios: campos de la casa («vacacional», campo por campo); undefined = quitarlo.
 //  - socio: solo los campos del costo del socio que cambiaron. llegada: dirección y mapa de una casa por noche.
 //  - sinLlegada: dejó de ser por noche; se borra privado/llegada.
-export async function guardarCambios(id, cambios, { socio = null, llegada = null, sinLlegada = false } = {}) {
+// cierre: el bloque «Cierre» de la ficha ({ form }): se decide aquí, en la misma transacción (cierrePorGuardar), y lo que
+// queda guardado vuelve en `cierre.queda`. Sin él (importador, traducción, cualquier otro), si cambia el estado el cierre
+// se borra: la casa vuelve a ofrecerse o cambió de vendida a rentada (otra operación). Así ningún camino deja un cierre viejo.
+export async function guardarCambios(id, cambios, { socio = null, llegada = null, sinLlegada = false, cierre = null } = {}) {
 	const ref = doc(db, 'properties', id);
 	const quien = autor();
 	const conBitacora = await bitacoraActiva();
@@ -307,6 +313,9 @@ export async function guardarCambios(id, cambios, { socio = null, llegada = null
 		const vac = esVacacional(casa);
 		// El costo del socio guardado AHORA (también en una casa que dejó de ser por noche: la bitácora lo compara).
 		const guardado = (await tx.get(doc(db, 'properties', id, 'privado', 'socio')).catch(() => null))?.data() || {};
+		// (Las lecturas de una transacción van antes de cualquier escritura.)
+		const refCierre = doc(db, 'properties', id, 'privado', 'cierre');
+		const cierrePrevio = cierre ? (await tx.get(refCierre)).data() || null : null;
 		const socioDespues = vac ? { ...guardado, ...socioLimpio(socio || {}) } : guardado;
 		if (vac) {
 			// El precio público sale del costo del socio guardado AHORA más lo que se cambió aquí.
@@ -323,6 +332,13 @@ export async function guardarCambios(id, cambios, { socio = null, llegada = null
 		tx.set(ref, casa);
 		if (vac) await guardarPrivadoVacacional(id, socio, llegada, tx, { bitacoraId: igual(fotoCasa({}, guardado), fotoCasa({}, socioDespues)) ? '' : bitacoraId });
 		if (sinLlegada) tx.delete(doc(db, 'properties', id, 'privado', 'llegada'));
+		if (cierre) {
+			const previo = cierrePrevio;
+			const que = cierrePorGuardar(cierre.form, casa, previo);
+			if (que === 'borrar') tx.delete(refCierre);
+			else if (que && !mismoCierre(previo, que)) tx.set(refCierre, { ...que, por: session.user.uid, updatedAt: serverTimestamp() });
+			cierre.queda = que === 'borrar' ? null : que || previo;
+		} else if (hist.cambioEstado) tx.delete(refCierre);
 		return casa;
 	});
 }
@@ -357,9 +373,20 @@ function autor() {
 }
 export const entradaHistorial = (estado) => entradaEstado(estado, autor());
 
-// Campos que registran un cambio de estado desde la lista: fecha y entrada en el historial.
-function cambioDeEstado(estado) {
+// Campos que registran un cambio de estado desde la lista (y «Aplicar» de un cierre en Cambios de los dueños): fecha y
+// entrada en el historial.
+export function cambioDeEstado(estado) {
 	return { estado, estadoFecha: serverTimestamp(), historialEstado: arrayUnion(entradaHistorial(estado)) };
+}
+
+const mismoCierre = (a, b) => Boolean(a) && ['fechaCierre', 'precioFinal', 'moneda', 'operacion'].every((k) => (a[k] ?? '') === (b[k] ?? ''));
+// El cambio de estado desde la lista (una o varias), en un lote: si el estado cambia, el cierre (privado/cierre) se borra,
+// lo mismo que en guardarCambios: la casa vuelve a ofrecerse o pasa de vendida a rentada. (Borrar uno que no existe no falla.)
+function loteDeEstado(id, cambios, antes) {
+	const lote = writeBatch(db);
+	lote.update(doc(db, 'properties', id), { ...cambios, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+	if (cambios.estado && cambios.estado !== estadoDe(antes).valor) lote.delete(doc(db, 'properties', id, 'privado', 'cierre'));
+	return lote;
 }
 
 // Nombre corto del estado para la etiqueta («retirada», no «retirada del mercado»).
@@ -470,7 +497,7 @@ export async function render(container, [id]) {
 	// Guarda al instante un cambio rápido de la lista y vuelve a dibujar.
 	const guardarRapido = async (p, cambios, local, desc, aviso) => {
 		try {
-			await updateDoc(doc(db, 'properties', p.id), { ...cambios, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+			await loteDeEstado(p.id, cambios, p).commit();
 			Object.assign(p, local, { updatedAt: { seconds: Date.now() / 1000 } });
 			refrescarPortalesDe([p.id]);
 			await markPending(desc);
@@ -608,7 +635,7 @@ export async function render(container, [id]) {
 		draw();
 	};
 	const guardarMasa = (cambios, local) => async (p) => {
-		await updateDoc(doc(db, 'properties', p.id), { ...cambios, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+		await loteDeEstado(p.id, cambios, p).commit();
 		Object.assign(p, local, { updatedAt: { seconds: Date.now() / 1000 } });
 	};
 	selMasaEstado.addEventListener('change', () => {
@@ -906,8 +933,9 @@ export async function render(container, [id]) {
 
 // `paraSocio`: la misma ficha para el socio que sube su casa nueva («Mis propiedades» → «Agregar casa»): sin lo del equipo
 // (paraElSocio). { colaborador }: el colaborador elige el asesor de su casa en venta o renta.
-function schema(agentOpts, isNew, socioOpts, ajeno = false, casaId = '', paraSocio = null) {
-	const campos = camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno, casaId);
+// `inventario`: las casas que ve quien edita (para sugerir zonas y siglas ya usadas).
+function schema(agentOpts, isNew, socioOpts, ajeno = false, casaId = '', paraSocio = null, inventario = []) {
+	const campos = camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno, casaId, inventario);
 	return paraSocio ? paraElSocio(campos, paraSocio) : campos;
 }
 // Lo que el socio no ve en su casa nueva: lo pone el servidor (dueño, URL, código, estado, visible) o es del equipo
@@ -916,7 +944,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false, casaId = '', paraSoc
 // admin/js/casa-nueva.js al publicar (la misma del servidor), junto al campo.
 const SOLO_EQUIPO = new Set(['slug', 'codigo', 'condominioSiglas', 'estado', 'propietarioId', 'orden', 'publicado', 'destacada', 'vip', 'video',
 	'socio.codigoSocio', 'socio.margen', 'vacacional.bloqueos', ...V.CALENDARIOS.map((c) => `socio.${c.campo}`)]);
-const SECCIONES_EQUIPO = ['Acuerdo con el dueño', 'Landing page VIP', 'Versión en inglés (mercado de EE. UU.)', 'SEO (opcional)'];
+const SECCIONES_EQUIPO = ['Acuerdo con el dueño', 'Cierre', 'Landing page VIP', 'Versión en inglés (mercado de EE. UU.)', 'SEO (opcional)'];
 const CUSTOM_EQUIPO = ['Ganancia y precio al público', 'Así se verá en Google', 'Calendario de Equipo Inmobiliario (pégalo en Airbnb, Booking y VRBO)'];
 const OBLIGATORIOS_SOCIO = new Set(['zona', 'ciudad']);
 const PARA_EL_SOCIO = {
@@ -936,20 +964,25 @@ function paraElSocio(campos, { colaborador = false } = {}) {
 	return campos.map((f) => {
 		if (f.type === 'section') enSeccionEquipo = SECCIONES_EQUIPO.includes(f.label);
 		const oculto = enSeccionEquipo || SOLO_EQUIPO.has(f.name) || (f.type === 'custom' && CUSTOM_EQUIPO.includes(f.label))
-			|| String(f.name || '').startsWith('acuerdo.') || String(f.name || '').startsWith('en.') || String(f.name || '').startsWith('vipLanding.');
+			|| String(f.name || '').startsWith('acuerdo.') || String(f.name || '').startsWith('cierre.') || String(f.name || '').startsWith('en.') || String(f.name || '').startsWith('vipLanding.');
 		if (oculto) return { ...f, when: () => false };
 		if (f.type === 'section' && f.label === 'Fotos') return { ...f, help: 'Al menos 5 (hasta 40). La primera es la portada.' };
 		const g = { ...f, ...(PARA_EL_SOCIO[f.name] || {}) };
-		if (OBLIGATORIOS_SOCIO.has(f.name)) g.required = true;
+		if (OBLIGATORIOS_SOCIO.has(f.name)) g.required = f.name === 'zona' ? pideZona : true;
 		// El asesor solo lo elige el colaborador, y solo en venta o renta (por noche no lleva).
 		if (f.name === 'agentId') Object.assign(g, { disabled: !colaborador, when: (d) => colaborador && !esVacacional(d) });
 		return g;
 	});
 }
-function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = '') {
+// El municipio de una casa de antes sin departamento: si es un municipio de la tabla, con el suyo.
+// Un nombre que existe en dos departamentos (San José, La Libertad…) no se completa solo: lo elige quien guarda.
+const departamentoGuardado = (d) => d.departamento || (!nombreRepetido(d.ciudad) && municipioDe(d.ciudad)?.municipio === String(d.ciudad || '').trim() ? municipioDe(d.ciudad).departamento : '');
+function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = '', inventario = []) {
+	const otras = inventario.filter((p) => p.id !== casaId);
 	// La landing VIP no tiene caja de reserva: una casa por noche siempre usa su ficha normal.
 	const vip = (d) => Boolean(d.vip) && !esVacacional(d);
 	const conDueno = (d) => Boolean(d.propietarioId);
+	const conCierre = (d) => !esVacacional(d) && estaCerrada(d);
 	// Un terreno no tiene cuartos, baños, parqueos, construcción, niveles ni año: no se le preguntan.
 	const construido = (d) => d.tipo !== 'terreno';
 	// Una casa por noche no lleva precio ni VIP: moneda, orden, visible y destacada caben en una sola fila.
@@ -960,8 +993,10 @@ function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = ''
 		{ type: 'section', label: 'Datos principales' },
 		{ name: 'titulo', label: 'Título', required: true, maxlength: 90, cols: 8, placeholder: 'Ej. Casa con jardín en Residencial San Antonio' },
 		{ name: 'slug', label: 'URL (slug)', cols: 4, help: 'Se genera solo a partir del título. Si la cambias, la URL anterior redirige a la nueva.', ref: (el) => { schema.slugInput = el; } },
+		// Las siglas ya usadas, con el nombre del condominio y cuántas casas; también se escriben unas nuevas.
+		{ name: 'condominioSiglas', label: 'Siglas del condominio', type: 'sugerido', libre: true, cols: 6, placeholder: 'VLM', opciones: () => opcionesSiglas(otras),
+			help: 'Elige una o escribe nuevas. Vacío: se toman del residencial; sin condominio, IND.' },
 		{ name: 'codigo', label: 'Código', cols: 6, placeholder: 'VLM-Z15-JA-001', help: 'Condominio, zona, asesor y número. Si lo dejas vacío, se crea solo al guardar.', ref: (el) => { schema.codigoInput = el; } },
-		{ name: 'condominioSiglas', label: 'Siglas del condominio', cols: 6, maxlength: 6, placeholder: 'VLM', help: 'Ej. VLM para Vista de las Lomas. Si lo dejas vacío, se toman del residencial; si no está en condominio, se usa IND.' },
 		{ name: 'operacion', label: 'Operación', type: 'select', options: OPERACIONES, cols: 3 },
 		{ name: 'tipo', label: 'Tipo', type: 'select', options: (d) => TIPOS.filter(([v]) => tipoAplica(v, d.operacion)), cols: 3 },
 		{ name: 'estado', label: 'Estado', type: 'select', options: (d) => estadosPara(d.operacion).map((e) => [e.valor, e.label]), cols: 3, help: 'Las cerradas (vendida, rentada) solo se abren con su enlace. Pausada y retirada: no se ven en ningún lado.' },
@@ -982,9 +1017,20 @@ function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = ''
 		{ name: 'fotos', label: 'Galería', type: 'images', marca: true },
 
 		{ type: 'section', label: 'Ubicación', when: (d) => !esVacacional(d) },
-		{ type: 'section', label: 'Ubicación', when: esVacacional, help: 'En la página solo salen la zona y la ciudad. La dirección y el mapa son privados: el cliente los recibe cuando se marca el pago.' },
-		{ name: 'zona', label: 'Zona', cols: 4, placeholder: 'Zona 16' },
-		{ name: 'ciudad', label: 'Ciudad / municipio', cols: 4, placeholder: 'Guatemala' },
+		{ type: 'section', label: 'Ubicación', when: esVacacional, help: 'En la página solo salen la zona y el municipio. La dirección y el mapa son privados: el cliente los recibe cuando se marca el pago.' },
+		// Departamento → municipio → zona, como los portales de Guatemala: el municipio se busca en la lista (agrupada por
+		// departamento, que sale de él) y la zona se elige de las de la capital, los sectores y las ya usadas ahí (admin/js/lugares.js).
+		{ name: 'ciudad', label: 'Municipio', type: 'sugerido', cols: 4, colsCelular: 12, placeholder: 'Escribe el municipio', opciones: (d) => opcionesMunicipio(d),
+			mostrar: (d) => municipioTexto(d.ciudad, departamentoGuardado(d)),
+			elegir: (o, d) => {
+				const ciudad = o ? o.valor.ciudad : '', departamento = o ? o.valor.departamento : '';
+				// Otro municipio: la zona de antes ya no es de ahí (pasar «Ciudad de Guatemala» a «Guatemala, Guatemala» no la borra).
+				if (d.ciudad && !mismoMunicipio(d, { ciudad, departamento })) d.zona = '';
+				Object.assign(d, { ciudad, departamento });
+			} },
+		{ name: 'zona', label: 'Zona', type: 'sugerido', libre: true, cols: 4, colsCelular: 12,
+			etiqueta: (d) => (!d.ciudad || pideZona(d) ? 'Zona' : departamentoDe(d) === 'Guatemala' ? 'Zona / colonia (opcional)' : 'Aldea / colonia (opcional)'),
+			opciones: (d) => opcionesZona(d, otras) },
 		{ name: 'direccion', label: 'Residencial / dirección', cols: 4, colsCelular: 12 },
 		{ name: 'mapa', label: 'Mapa (opcional)', type: 'textarea', rows: 2, help: 'Pega el código "Insertar mapa" de Google Maps, o escribe la dirección o coordenadas.' },
 
@@ -1021,7 +1067,8 @@ function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = ''
 		{ name: 'vacacional.mascotas', label: 'Mascotas', type: 'select', options: [['', 'Sin indicar'], ['si', 'Se aceptan'], ['no', 'No se aceptan']], cols: 4, when: esVacacional },
 		{ name: 'vacacional.comoLlegar', label: 'Cómo llegar (opcional)', type: 'textarea', rows: 2, when: esVacacional, placeholder: 'A 45 min de la capital; los últimos 2 km son de terracería.' },
 		{ name: 'vacacional.reglas', label: 'Reglas de la casa (una por línea)', type: 'textarea', rows: 3, when: esVacacional, help: 'Vacío = las reglas generales de Contenido → Textos → Renta vacacional.' },
-		{ name: 'vacacional.cancelacion', label: 'Cancelación', type: 'textarea', rows: 2, when: esVacacional, help: 'Vacío = la política general de Contenido → Textos → Renta vacacional.' },
+		{ name: 'vacacional.cancelacionPolitica', label: 'Política de cancelación', type: 'opciones', options: opcionesCancelacion(), default: isNew ? 'moderada' : undefined, when: esVacacional },
+		{ name: 'vacacional.cancelacion', label: 'Nota (opcional)', when: esVacacional, placeholder: 'Ej. En Semana Santa no hay devolución.', help: 'El depósito siempre se devuelve.' },
 		// Un calendario por plataforma (V.CALENDARIOS): sus noches ocupadas se bloquean solas en la página.
 		...V.CALENDARIOS.map((c) => ({ name: `socio.${c.campo}`, label: `Calendario de ${c.nombre} (iCal, opcional)`, type: 'url', cols: 4, when: esVacacional, placeholder: 'https://….ics', help: AYUDA_ICAL[c.nombre] })),
 		// Y al revés: lo que reservan los clientes de EQ, para que esas plataformas lo bloqueen.
@@ -1067,6 +1114,11 @@ function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = ''
 		{ name: 'acuerdo.impuestoPaga', label: 'Quién paga el impuesto', type: 'select', cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', options: [['', 'Por definir'], ['comprador', 'Comprador'], ['vendedor', 'Vendedor'], ['mitad', 'Mitad y mitad']] },
 		{ name: 'acuerdo.notasImpuestos', label: 'Notas de impuestos', cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', placeholder: 'IUSI al día, ISR, gastos de escritura…' },
 		{ name: 'acuerdo.contrato', label: 'Enlace al contrato (Drive, Dropbox…)', type: 'url', cols: 12, when: conDueno, placeholder: 'https://…' },
+		// Cierre de una casa vendida o rentada: fecha y precio final, privados (privado/cierre, admin/js/cierre-casa.js; nunca
+		// en la casa, que es pública). Lo usa Reportes; también lo pone «Aplicar» del aviso del dueño (Cambios de los dueños).
+		{ type: 'section', label: 'Cierre', when: conCierre, help: 'Privado: no sale en la página. Reportes usa esta fecha y este precio (en renta, la renta al mes).' },
+		{ name: 'cierre.fechaCierre', label: 'Fecha del cierre', type: 'date', cols: 4, when: conCierre },
+		{ name: 'cierre.precioFinal', label: 'Precio final', type: 'number', min: 0, step: 0.01, cols: 4, when: conCierre, help: 'Vacío = el precio publicado.' },
 
 		{ type: 'section', label: 'Landing page VIP', help: 'Se publica en /vip/… y queda completa aunque no escribas nada aquí: usa el título, la primera foto, los datos, la descripción y las amenidades de la casa.', when: vip },
 		{ name: 'vipLanding.titular', label: 'Titular', cols: 6, when: vip, placeholder: 'Vacío = el título de la casa' },
@@ -1087,7 +1139,7 @@ function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = ''
 		{ name: 'en.vipLanding.puntosClave', label: 'VIP highlights (English)', type: 'tags', when: vip },
 		{ name: 'en.vacacional.comoLlegar', label: 'Getting there (English)', type: 'textarea', rows: 2, when: esVacacional },
 		{ name: 'en.vacacional.reglas', label: 'House rules (English, one per line)', type: 'textarea', rows: 3, when: esVacacional },
-		{ name: 'en.vacacional.cancelacion', label: 'Cancellation (English)', type: 'textarea', rows: 2, when: esVacacional },
+		{ name: 'en.vacacional.cancelacion', label: 'Cancellation note (English)', when: esVacacional },
 		{ name: 'en.seo.titulo', label: 'Google title (English)', maxlength: 70, cols: 6 },
 		{ name: 'en.seo.descripcion', label: 'Google description (English)', maxlength: 160, cols: 6 },
 
@@ -1205,13 +1257,15 @@ async function renderEditor(container, id, emb = null) {
 	let slugTouched = Boolean(data.slug);
 	// El socio: la casa es suya y, en venta o renta, la atiende su asesor (el colaborador puede elegir otro).
 	if (paraSocio) Object.assign(data, { propietarioId: session.profile.propietarioId || '', agentId: session.dueno?.agentId || '' });
-	const datosForm = { ...data, acuerdo: acuerdoInicial, socio: { margen: V.MARGEN, ...(socioGuardado || {}) }, vacacional: { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(data.vacacional || {}) } };
+	// El cierre de la casa (privado/cierre): solo el equipo lo lee; una lectura que falla no se toma por «no tiene».
+	let cierreGuardado = isNew || paraSocio ? null : (await getDoc(doc(db, 'properties', ref.id, 'privado', 'cierre'))).data() || null;
+	const datosForm = { ...data, cierre: { fechaCierre: cierreGuardado?.fechaCierre || '', precioFinal: cierreGuardado?.precioFinal ?? '' }, acuerdo: acuerdoInicial, socio: { margen: V.MARGEN, ...(socioGuardado || {}) }, vacacional: { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(data.vacacional || {}) } };
 	mascotasUnaVez(datosForm);
-	const form = renderForm(schema(agentOpts, isNew, socioOpts, ajeno, isNew ? '' : ref.id, paraSocio ? { colaborador: session.dueno?.tipo === 'colaborador' } : null), datosForm, { folder: `properties/${ref.id}` });
+	const form = renderForm(schema(agentOpts, isNew, socioOpts, ajeno, isNew ? '' : ref.id, paraSocio ? { colaborador: session.dueno?.tipo === 'colaborador' } : null, all), datosForm, { folder: `properties/${ref.id}` });
 	// La ficha como estaba al abrirla (o al último «Guardar»): con eso se sabe qué cambió quien la edita y solo eso se
 	// guarda (guardarCambios). De una casa que no era por noche no hay nada por noche guardado: todo eso es nuevo.
 	const comoQuedo = (f) => {
-		const { socio = {}, acuerdo, ...datos } = clonar(f);
+		const { socio = {}, acuerdo, cierre, ...datos } = clonar(f);
 		if (!esVacacional(f)) delete datos.vacacional;
 		return { datos, socio: esVacacional(f) ? socio : {} };
 	};
@@ -1344,9 +1398,13 @@ async function renderEditor(container, id, emb = null) {
 		// Lo del socio nunca va al documento público (ni a la traducción).
 		const socio = d.socio || {};
 		delete d.socio;
-		// El acuerdo con el dueño tampoco (privado/acuerdo).
+		// El acuerdo con el dueño tampoco (privado/acuerdo), ni el cierre (privado/cierre).
 		const delFormulario = d.acuerdo || {};
 		delete d.acuerdo;
+		const cierreForm = d.cierre || {};
+		delete d.cierre;
+		const cierreError = !esVacacional(d) && estaCerrada(d) ? faltaEnCierre(cierreForm, hoyISO()) : '';
+		if (cierreError) return toast(cierreError, 'warning');
 		let llegada = null;
 		// El dueño de la casa ya está en Propietarios: su nombre y teléfono salen de ahí, no se vuelven a escribir.
 		if (esVacacional(d)) {
@@ -1370,12 +1428,15 @@ async function renderEditor(container, id, emb = null) {
 		if (!d.slug) return toast('Escribe un título.', 'warning');
 		// La zona sin espacios de más; la forma de escribirla la unifica el sitio (landings.mjs `unificarZonas`).
 		d.zona = String(d.zona || '').trim().replace(/\s+/g, ' ');
+		// El municipio con su departamento (San José o La Libertad hay en dos): uno de antes sin él lo toma de la tabla.
+		if (departamentoGuardado(d)) d.departamento = departamentoGuardado(d);
 		const clash = all.find((p) => p.id !== ref.id && p.slug === d.slug);
 		if (clash) return toast(`La URL "${d.slug}" ya la usa "${clash.titulo}". Cámbiala.`, 'warning');
 		if (!session.isAdmin) d.agentId = session.agentId;
 		// Código único: si está vacío en una propiedad nueva, se genera.
 		d.codigo = normalizarCodigo(d.codigo);
-		d.condominioSiglas = normalizarCodigo(d.condominioSiglas).replace(/-/g, '');
+		// Hasta 6 letras (el campo deja escribir más para buscar por el nombre del condominio).
+		d.condominioSiglas = normalizarCodigo(d.condominioSiglas).replace(/-/g, '').slice(0, 6);
 		if (!d.codigo && isNew) d.codigo = generarCodigo(d, { agentes, codigos: codigosUsados() });
 		const otraCodigo = d.codigo && all.find((p) => p.id !== ref.id && normalizarCodigo(p.codigo) === d.codigo);
 		if (otraCodigo) {
@@ -1428,10 +1489,13 @@ async function renderEditor(container, id, emb = null) {
 				guardada = d;
 			} else {
 				// Solo lo que cambió aquí, sobre lo guardado ahora; lo privado, en la misma transacción.
+				// El cierre (privado/cierre) también va en la misma transacción.
+				const cierre = { form: cierreForm };
 				guardada = await guardarCambios(ref.id, cambiosEntre(alAbrir.datos, d), {
 					socio: esVacacional(d) ? cambiosEntre(alAbrir.socio, socio, []) : null,
-					llegada, sinLlegada
+					llegada, sinLlegada, cierre
 				});
+				cierreGuardado = cierre.queda;
 			}
 			// Lo guardado es el punto de partida de un segundo «Guardar» sin recargar (también el acuerdo y «data», abajo).
 			alAbrir = comoQuedo(mio);
@@ -1447,6 +1511,11 @@ async function renderEditor(container, id, emb = null) {
 			if (acuerdo === 'borrar') await deleteDoc(acuerdoRef);
 			else if (acuerdo) await setDoc(acuerdoRef, { ...acuerdo, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
 			if (acuerdo) acuerdoPropio = acuerdo === 'borrar' ? null : acuerdo;
+			// Una casa nueva ya vendida o rentada: su cierre, después de crearla (su regla lee la casa).
+			if (isNew) {
+				const que = cierrePorGuardar(cierreForm, guardada, null);
+				if (que && que !== 'borrar') { await setDoc(doc(db, 'properties', ref.id, 'privado', 'cierre'), { ...que, por: session.user.uid, updatedAt: serverTimestamp() }); cierreGuardado = que; }
+			}
 			acuerdoTocado = false;
 			eraVacacional = Boolean(llegada);
 			if (!isNew) refrescarPortalesDe([ref.id]);

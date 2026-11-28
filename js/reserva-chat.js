@@ -343,19 +343,29 @@
 		// Las tarjetas: los datos de pago (con «Copiar datos»), los de llegada y el comprobante.
 		function tarjeta(m) {
 			if (m.tipo === 'pago') {
+				// Los datos en sus renglones (banco, cuenta, a nombre de; admin/js/datos-pago.js) y el total abajo. «Copiar datos»
+				// es el ícono de la fila del título (44 px): no agrega una fila. Unos de antes en una línea se ven igual.
 				var tp = el('div', 'hilo-tarj vac-chat-pago');
 				tp.dataset.id = m.id;
-				tp.appendChild(el('h3', '', t.vacChatPagaDirecto));
-				tp.appendChild(el('p', '', m.texto + ' · ' + total));
-				var fila = el('div', 'hilo-tarj-fila');
-				var copiar = el('button', 'hilo-btn hilo-btn-sec', t.vacChatCopiar);
+				var cab = el('div', 'hilo-tarj-cab');
+				cab.appendChild(el('h3', '', t.vacChatPagaDirecto));
+				var copiar = el('button', 'hilo-ib');
 				copiar.type = 'button';
+				var iconoCopiar = el('span', 'icon-copy');
+				iconoCopiar.setAttribute('aria-hidden', 'true');
+				copiar.appendChild(iconoCopiar);
+				var rotulo = function (txt) { copiar.title = txt; copiar.setAttribute('aria-label', txt); };
+				rotulo(t.vacChatCopiar);
+				var totalTxt = t.vacChatTotal + ' ' + total;
 				copiar.addEventListener('click', function () {
-					var hecho = function () { copiar.textContent = t.vacChatCopiado; setTimeout(function () { copiar.textContent = t.vacChatCopiar; }, 2000); };
-					try { navigator.clipboard.writeText(m.texto + '\n' + total).then(hecho, function () {}); } catch (e) { /* sin portapapeles */ }
+					var hecho = function () { rotulo(t.vacChatCopiado); iconoCopiar.className = 'icon-check'; setTimeout(function () { rotulo(t.vacChatCopiar); iconoCopiar.className = 'icon-copy'; }, 2000); };
+					try { navigator.clipboard.writeText(m.texto + '\n' + totalTxt).then(hecho, function () {}); } catch (e) { /* sin portapapeles */ }
 				});
-				fila.appendChild(copiar);
-				tp.appendChild(fila);
+				cab.appendChild(copiar);
+				tp.appendChild(cab);
+				var datos = el('p', '', m.texto + '\n');
+				datos.appendChild(el('b', '', totalTxt));
+				tp.appendChild(datos);
 				return tp;
 			}
 			if (m.tipo === 'llegada') {
