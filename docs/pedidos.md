@@ -118,3 +118,4 @@
 - [-] 2026-11-28 «This session's worker process was restarted. If your previous turn was already complete, take no action and wait for the next event. Otherwise, continue from where you left off.» → aviso del sistema, no es un pedido.
 - [x] 2026-11-28 «Continua» → PR #163 unido (ubicación por listas, datos de pago, pedidos del socio, cierre).
 - [x] 2026-11-28 «Ya el uso se reinicio» → PR #163 unido (ubicación por listas, datos de pago, pedidos del socio, cierre).
+- [x] 2026-11-28 «Instrucciones» → pasos para publicar firestore.rules y storage.rules y correr «Pasar datos al formato nuevo».
