@@ -50,6 +50,9 @@ await t('aparta su carpeta (y la misma si vuelve a abrir la ficha) y publica la 
 	assert.equal(c.slug, 'casa-con-jardin-en-zona-15-2');
 	assert.ok(c.codigo && c.codigo !== 'IND-Z15-AA-001', c.codigo);
 	assert.equal(c.historialEstado.length, 1);
+	// La casa publicada la lee cualquiera: el historial lleva el uid del socio, no su nombre.
+	assert.equal('por' in c.historialEstado[0], false);
+	assert.equal(c.historialEstado[0].porUid, 'u-socio');
 	assert.equal(leer(`casasNuevas/${id}`), null);
 	assert.deepEqual(leer('propietarios/p1').propiedades, [{ propertyId: 'vieja' }, { propertyId: id }]);
 	const aviso = hijos('cambiosDueno')[0];

@@ -3,7 +3,8 @@ import { S, leer, hijos } from './base.mjs';
 export const datosConfigurados = () => true;
 export const SCOPE_DATOS = 'https://www.googleapis.com/auth/datastore';
 export const leerPublico = async (ruta) => leer(ruta);
-export const leerPrivado = async (ruta) => { if (S.lecturaFalla) throw new Error('Error 503 al leer'); return leer(ruta); };
+// `S.lecturaDemora` (ms): cada lectura tarda eso, como una función recién despertada en Netlify.
+export const leerPrivado = async (ruta) => { if (S.lecturaDemora) await new Promise((r) => setTimeout(r, S.lecturaDemora)); if (S.lecturaFalla) throw new Error('Error 503 al leer'); return leer(ruta); };
 export const listar = async (col) => hijos(col);
 export const desde = async (col, campo, fecha) => hijos(col).filter((d) => d[campo] instanceof Date && d[campo] > fecha).sort((a, b) => a[campo] - b[campo]);
 // Como el real: igualdad (texto) y un rango «desde» ordenado por el campo (texto o número).
@@ -12,3 +13,5 @@ export const donde = async (col, campo, valor) => hijos(col).filter((d) => (type
 export const consultar = async (col, campo, valor, { tope = 3000 } = {}) => hijos(col)
 	.filter((d) => (typeof valor === 'number' ? typeof d[campo] === 'number' && d[campo] >= valor : typeof d[campo] === 'string' && d[campo] >= String(valor)))
 	.sort((a, b) => (a[campo] < b[campo] ? -1 : a[campo] > b[campo] ? 1 : 0)).slice(0, tope);
+// Las rutas de los documentos de las subcolecciones llamadas `col`, estén donde estén (como la consulta de grupo).
+export const rutasDeGrupo = async (col) => [...S.docs.keys()].filter((k) => k.split('/').at(-2) === col).sort();

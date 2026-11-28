@@ -1,5 +1,6 @@
 // Pruebas de admin/js/casa-nueva.js: la casa nueva que sube el socio (lo que se revisa y lo que pone el sistema).
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { revisarCasaNueva, armarCasaNueva, datosParaServidor, MIN_FOTOS } from '../admin/js/casa-nueva.js';
 import '../js/calc-vacacional.js';
 
@@ -22,7 +23,8 @@ t('una casa en venta completa pasa; el asesor es el que atiende al dueño', () =
 	assert.deepEqual(r.errores, []);
 	assert.equal(r.casa.agentId, 'a1');
 	assert.equal(r.casa.precio, 350000);
-	assert.equal(r.casa.fotos[0].alt, 'Casa con jardín en Zona 15 – foto 1');
+	// Sin descripción, la foto se guarda sin ella: el sitio la arma al publicar con el título de ese día (photoAlt).
+	assert.ok(r.casa.fotos.every((f) => !('alt' in f)));
 	assert.equal(r.casa.vacacional, undefined);
 	// La marca de agua (marca: true) no la decide quien manda.
 	assert.ok(r.casa.fotos.every((f) => !('marca' in f)));
@@ -45,10 +47,10 @@ t(`mínimo ${MIN_FOTOS} fotos, sin repetir y de la carpeta de esta casa`, () => 
 	assert.match(revisar(venta({ fotos: fotos('c1', 4) })).errores[0].msg, /al menos 5 \(llevas 4\)/);
 	assert.deepEqual(campos(revisar(venta({ fotos: [...fotos('c1', 4), foto('otra', 9)] }))), ['fotos']);
 	assert.deepEqual(campos(revisar(venta({ fotos: [...fotos('c1', 4), foto('c1', 1)] }))), ['fotos']);
-	// La descripción de cada foto: la suya si la escribió (sin contacto); si no, la del título.
-	const conAlt = revisar(venta({ fotos: [{ ...foto('c1', 1), alt: 'Fachada con jardín' }, ...fotos('c1', 5).slice(1)] }));
+	// La descripción de cada foto: la suya si la escribió (sin contacto); si no, ninguna (no una fija con el título).
+	const conAlt = revisar(venta({ fotos: [{ ...foto('c1', 1), alt: ' Fachada con jardín ' }, { ...foto('c1', 2), alt: '  ' }, ...fotos('c1', 5).slice(2)] }));
 	assert.equal(conAlt.casa.fotos[0].alt, 'Fachada con jardín');
-	assert.equal(conAlt.casa.fotos[1].alt, 'Casa con jardín en Zona 15 – foto 2');
+	assert.equal('alt' in conAlt.casa.fotos[1], false);
 	assert.deepEqual(campos(revisar(venta({ fotos: [{ ...foto('c1', 1), alt: 'Llama al 5512 3456' }, ...fotos('c1', 5).slice(1)] }))), ['fotos']);
 	// En la ficha el origen no se revisa (lo revisa el servidor).
 	assert.deepEqual(revisar(venta({ fotos: [...fotos('c1', 4), { ...foto('c1', 9), url: 'http://127.0.0.1:9199/x' }] }), { revisarOrigen: false }).errores, []);
@@ -64,6 +66,10 @@ t('datos reales de venta y renta no se toman por contacto (direcciones, montos, 
 		amenidades: ['Área social', 'Gimnasio 24/7'], m2Construccion: 480, mantenimiento: 1500 }));
 	assert.deepEqual(r.errores, []);
 	assert.deepEqual(revisar(venta({ operacion: 'renta', precio: 1500, titulo: 'Apartamento en renta, edificio Torre 5, nivel 12' })).errores, []);
+	// Un precio de Q20M a Q79.9M (8 cifras que empiezan de 2 a 7) con su moneda y en miles exactos es un precio, en el
+	// título, la descripción y una amenidad; el teléfono pelado sigue bloqueado.
+	assert.deepEqual(revisar(venta({ titulo: 'Casa en Q25,000,000', descripcion: 'Casa amplia con jardín. Precio US$ 22,500,000.00 negociable o 40,000,000 quetzales.', amenidades: ['Jardín', 'Cuota Q.30,000,000'] })).errores, []);
+	for (const tel of ['55551234', '5555-1234', '5555 1234', 'Q55,551,234']) assert.deepEqual(campos(revisar(venta({ descripcion: `Casa amplia con jardín. Precio Q25,000,000. ${tel}` }))), ['descripcion'], tel);
 });
 t('lo obligatorio de cada operación: precio en venta; precio por noche y dirección por noche', () => {
 	assert.deepEqual(campos(revisar(venta({ precio: '' }))), ['precio']);
@@ -91,5 +97,25 @@ t('armar: publicada y disponible al momento; por noche, sus precios públicos co
 	assert.deepEqual(n.casa.vacacional.reservadas, []);
 	assert.equal(n.casa.agentId, '');
 	assert.deepEqual(n.llegada.direccion, 'Lote 4, calle al mar');
+});
+// Lo que el panel hace con la casa del socio (pantallas con DOM y Firebase: se revisa en su código).
+const fuente = (f) => readFileSync(new URL(`../admin/js/${f}`, import.meta.url), 'utf8');
+t('al socio se le dice «unos 20 minutos» con un solo texto (SALE_SOLA), en la casa nueva y en «Mis propiedades»', () => {
+	assert.match(fuente('session.js'), /export const SALE_SOLA = 'Sale en la página en unos 20 minutos\.';/);
+	for (const f of ['views/properties.js', 'views/mis-casas.js']) {
+		assert.match(fuente(f), /publicaSola \? `[^`]*\$\{SALE_SOLA\}`/, f);
+		assert.doesNotMatch(fuente(f), /Sale en la página en unos minutos/, f);
+	}
+});
+t('«Listo» y «Deshacer» de Cambios de un dueño: si traducen al inglés, dejan el sitio por publicar', () => {
+	const f = fuente('views/cambios-dueno.js');
+	const cuerpo = f.slice(f.indexOf('async function inglesAlDia'), f.indexOf('\n}\n', f.indexOf('async function inglesAlDia')));
+	assert.match(cuerpo, /await guardarCambios\([^]*\n\tawait markPending\(`Traducción al inglés: /);
+});
+t('eliminar la casa suelta la URL y el código que apartó (por su propertyId, en el mismo lote que la borra)', () => {
+	const f = fuente('views/properties.js');
+	const cuerpo = f.slice(f.indexOf('export async function eliminarPropiedad'), f.indexOf('await borrarFotos(p);'));
+	assert.match(cuerpo, /\['urlsCasas', 'codigosCasas'\]\.map\(\(c\) => getDocs\(query\(collection\(db, c\), where\('propertyId', '==', p\.id\)\)\)/);
+	assert.match(cuerpo, /apartados\.forEach\(\(ref\) => lote\.delete\(ref\)\);\n\tlote\.delete\(doc\(db, 'properties', p\.id\)\);\n\tawait lote\.commit\(\);/);
 });
 console.log(`${ok} pruebas de la casa nueva del socio correctas`);

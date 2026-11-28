@@ -15,10 +15,25 @@ let sec = 0;
 const ids = () => { sec++; const leadId = `Lead${String(sec).padStart(16, '0')}`, token = `Token${String(sec).padStart(23, '0')}`; return { leadId, token }; };
 const hoy = () => new Date(S.reloj - 6 * 3600000).toISOString().slice(0, 10);
 const masDias = (n) => new Date(Date.parse(`${hoy()}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
-const bien = (extra = {}) => ({ codigo: 'EQ-ABC123', llegada: masDias(10), salida: masDias(13), noches: 3, huespedes: 2, subtotal: 400, impuestos: 88, total: 488, deposito: 0, moneda: 'USD', ...extra });
+// Lo que cotiza la página con lo guardado en la casa (precio, limpieza y depósito de properties/c1 en ese momento): el
+// servidor lo vuelve a cotizar igual. Sin `subtotal` en `extra`, se cotiza; con él, va tal cual (lo que mande otra página).
+// (El código que mandaba la página de antes va igual: el servidor no lo usa.)
+await import('../js/calc-vacacional.js');
+const V = globalThis.EQVacacional;
+const VAC = { huespedesMax: 4, base: 100, limpieza: 100 };
+const bien = (extra = {}) => {
+	const r = { codigo: 'EQ-ABC123', llegada: masDias(10), salida: masDias(13), noches: 3, huespedes: 2, deposito: 0, moneda: 'USD', ...extra };
+	if (!('noches' in extra) && V.esFecha(r.llegada) && V.esFecha(r.salida)) r.noches = V.nochesEntre(r.llegada, r.salida);
+	if (!('subtotal' in extra)) {
+		const v = leer('properties/c1')?.vacacional || VAC;
+		const c = V.cotizarEstancia({ plan: { base: v.base, finde: v.finde, tarifas: v.tarifas || [] }, llegada: r.llegada, salida: r.salida, limpieza: v.limpieza, deposito: v.deposito });
+		Object.assign(r, { subtotal: c.subtotal, impuestos: c.impuestos, total: c.total, deposito: 'deposito' in extra ? extra.deposito : c.deposito }, Object.fromEntries(['impuestos', 'total'].filter((k) => k in extra).map((k) => [k, extra[k]])));
+	}
+	return r;
+};
 const cuerpo = (r = bien(), lead = {}, extra = {}) => ({ ...ids(), lead: { nombre: 'Ana Morales', telefono: '+502 5555 1234', email: `ana${sec}@example.com`, mensaje: 'EQ-ABC123 · 3 noches', origen: 'reserva', pagina: '/propiedad/casa/',
 	propertyId: 'c1', idioma: 'es', ...lead }, reserva: r, chat: { foto: 'https://ejemplo.com/a.jpg', url: '/propiedad/casa/' }, ...extra });
-const casa = (extra = {}) => poner('properties/c1', { titulo: 'Casa del lago', operacion: 'vacacional', publicado: true, estado: 'disponible', propietarioId: 'p1', agentId: '', moneda: 'USD', vacacional: { huespedesMax: 4 }, ...extra });
+const casa = (extra = {}) => poner('properties/c1', { titulo: 'Casa del lago', operacion: 'vacacional', publicado: true, estado: 'disponible', propietarioId: 'p1', agentId: '', moneda: 'USD', vacacional: VAC, ...extra });
 const estado = async (c) => { const r = await pedir(c); return [r.status, await r.json()]; };
 
 await t('solicitud, chat e índice nacen juntos, con el dueño, el asesor y el título de la casa (no los que mande la página)', async () => {
@@ -27,11 +42,15 @@ await t('solicitud, chat e índice nacen juntos, con el dueño, el asesor y el t
 	const [s, d] = await estado(c);
 	assert.equal(s, 200, JSON.stringify(d));
 	assert.equal(d.token, c.token);
+	// El código lo pone el servidor (no el que mandó la página), único, y lo devuelve.
+	assert.match(d.codigo, /^EQ-[A-HJ-NP-Z2-9]{6}$/);
+	assert.notEqual(d.codigo, 'EQ-ABC123');
 	const lead = leer(`leads/${c.leadId}`), chat = leer(`chats/${c.token}`);
 	assert.deepEqual([lead.propietarioId, lead.agentId, lead.propertyTitulo, lead.estado, lead.email], ['p1', '', 'Casa del lago', 'nuevo', `ana${sec}@example.com`]);
 	assert.ok(lead.createdAt instanceof Date);
-	assert.deepEqual([chat.leadId, chat.codigo, chat.propietarioId, chat.nombre, chat.subtotal, chat.total, chat.huespedes], [c.leadId, 'EQ-ABC123', 'p1', 'Ana', 400, 488, 2]);
+	assert.deepEqual([chat.leadId, chat.codigo, lead.reserva.codigo, chat.propietarioId, chat.nombre, chat.subtotal, chat.total, chat.huespedes], [c.leadId, d.codigo, d.codigo, 'p1', 'Ana', 400, 488, 2]);
 	assert.equal(leer(`chatsPorSolicitud/${c.leadId}`).token, c.token);
+	assert.deepEqual([leer(`codigosReserva/${d.codigo}`).leadId, lead.mensaje], [c.leadId, `${d.codigo} · 3 noches`], 'el mensaje lleva el código del servidor, no el de la página');
 });
 
 await t('el mismo envío otra vez (la respuesta se perdió) responde lo mismo y no crea otra; con otro chat, 409', async () => {
@@ -60,8 +79,11 @@ await t('lo cotizado: impuestos del 22 %, total = subtotal + impuestos, noches d
 		{ noches: 2.5 }, { subtotal: 0, impuestos: 0, total: 0 }, { subtotal: -100, impuestos: -22, total: -122 }, { llegada: 'mañana' },
 		{ llegada: masDias(1), salida: masDias(92), noches: 91, subtotal: 9100, impuestos: 2002, total: 11102 }, { huespedes: 0 }, { moneda: undefined }];
 	for (const m of malas) assert.equal((await pedir(cuerpo(bien(m)))).status, 400, JSON.stringify(m));
-	for (const m of [{ subtotal: 433.33, impuestos: 95.33, total: 528.66 }, { llegada: masDias(1), salida: masDias(91), noches: 90, subtotal: 9000, impuestos: 1980, total: 10980 }])
-		assert.equal((await pedir(cuerpo(bien(m)))).status, 200, JSON.stringify(m));
+	assert.equal((await pedir(cuerpo(bien({ llegada: masDias(1), salida: masDias(91), noches: 90 })))).status, 200, '90 noches');
+	casa({ vacacional: { ...VAC, base: 111.11 } });
+	const centavos = bien();
+	assert.deepEqual([centavos.subtotal, centavos.impuestos, centavos.total], [433.33, 95.33, 528.66]);
+	assert.equal((await pedir(cuerpo(centavos))).status, 200, 'impuestos al centavo');
 });
 
 await t('la casa manda: moneda, personas máximo, por noche, publicada y sin pausa por atraso', async () => {
@@ -133,10 +155,11 @@ await t('reintento (la respuesta se perdió): se reconoce antes de revisar las f
 	const c = cuerpo(bien({ llegada: '2026-11-25', salida: '2026-11-27', noches: 2 }));
 	assert.equal((await pedir(c)).status, 200);
 	S.reloj = Date.parse('2026-11-26T00:00:20-06:00');
+	const primero = leer(`chats/${c.token}`).codigo;
 	const r = await pedir({ ...c, reserva: { ...c.reserva, codigo: 'EQ-OTRO99' } });
 	assert.equal(r.status, 200);
-	assert.equal((await r.json()).token, c.token);
-	assert.equal(leer(`chats/${c.token}`).codigo, 'EQ-ABC123');
+	assert.deepEqual(await r.json(), { token: c.token, codigo: primero }, 'el reintento responde el mismo token y el mismo código');
+	assert.equal(leer(`chats/${c.token}`).codigo, primero);
 	S.reloj = Date.parse('2026-11-20T12:00:00-06:00');
 });
 
@@ -209,10 +232,10 @@ await t('reintento ya atendido o de hace más de 30 min: el enlace no cambia el 
 });
 
 await t('fechas tomadas: con una reserva confirmada, un bloqueo del socio u otra solicitud que las aparta, 409 y no se guarda; las de al lado sí', async () => {
-	casa({ vacacional: { huespedesMax: 4, reservadas: [{ desde: masDias(11), hasta: masDias(12) }] } });
+	casa({ vacacional: { ...VAC, reservadas: [{ desde: masDias(11), hasta: masDias(12) }] } });
 	let [s, d] = await estado(cuerpo());
 	assert.deepEqual([s, d.fechas], [409, true], JSON.stringify(d));
-	casa({ vacacional: { huespedesMax: 4, bloqueos: [{ desde: masDias(12), hasta: masDias(20) }] } });
+	casa({ vacacional: { ...VAC, bloqueos: [{ desde: masDias(12), hasta: masDias(20) }] } });
 	assert.equal((await pedir(cuerpo())).status, 409);
 	casa();
 	const primera = cuerpo();
@@ -259,16 +282,22 @@ await t('la pregunta «¿ya quedó?», el reintento de la misma y un choque (503
 });
 
 await t('montos congelados al guardar: la solicitud aparta sus fechas al instante (la siguiente sobre ellas, 409); por debajo del plan, le toca al equipo', async () => {
-	casa({ vacacional: { huespedesMax: 4 } });
+	// El precio público de la casa (120) es el del socio (100) con su margen (20 %).
+	casa({ vacacional: { huespedesMax: 4, base: 120 } });
 	poner('properties/c1/privado/socio', { margen: 20, precioBase: 100, precioFinde: 100 });
-	const c = cuerpo(bien({ subtotal: 400, impuestos: 88, total: 488 }));
+	const c = cuerpo(bien());
 	assert.equal((await pedir(c)).status, 200);
 	const m = leer(`montosSolicitud/${c.leadId}`);
 	assert.ok(m && m.alojamiento > 0, JSON.stringify(m));
 	assert.equal(leer('apartadasCasa/c1').lista.length, 1);
 	const [s2, d2] = await estado(cuerpo(bien({ llegada: masDias(11), salida: masDias(12), noches: 1, subtotal: 200, impuestos: 44, total: 244 })));
 	assert.deepEqual([s2, d2.fechas], [409, true]);
-	const barata = cuerpo(bien({ llegada: masDias(30), salida: masDias(33), subtotal: 10, impuestos: 2.2, total: 12.2 }));
+	// Lo que manda una página con otro precio (vieja o cambiada a mano) ya no se guarda: 409 y la página recarga el precio.
+	const [s3, d3] = await estado(cuerpo(bien({ llegada: masDias(30), salida: masDias(33), subtotal: 10, impuestos: 2.2, total: 12.2 })));
+	assert.deepEqual([s3, d3.recargar, d3.precio], [409, true, true]);
+	// El socio subió su precio y el público de la casa quedó atrás (sin publicar): lo cotizado queda por debajo de su plan.
+	poner('properties/c1/privado/socio', { margen: 20, precioBase: 200, precioFinde: 200 });
+	const barata = cuerpo(bien({ llegada: masDias(30), salida: masDias(33) }));
 	assert.equal((await pedir(barata)).status, 200);
 	assert.deepEqual([leer(`chats/${barata.token}`).confirmaEquipo, leer(`chats/${barata.token}`).teTocaPendiente], [true, true]);
 });
@@ -291,7 +320,7 @@ await t('freno previo por IP: 60 solicitudes distintas por hora aunque ninguna s
 });
 
 await t('otra persona con el mismo correo, casa y fechas NO recibe el token: el mismo 409 que cualquiera, y el enlace va al correo guardado (1 cada 10 min, 3 al día)', async () => {
-	casa({ vacacional: { huespedesMax: 4 } });
+	casa({ vacacional: { huespedesMax: 4, base: 120 } });
 	poner('properties/c1/privado/socio', { margen: 20, precioBase: 100, precioFinde: 100 });
 	const a = cuerpo();
 	assert.equal((await pedir(a)).status, 200);
@@ -314,6 +343,49 @@ await t('otra persona con el mismo correo, casa y fechas NO recibe el token: el 
 	const [s2, d2] = await estado(cuerpo());
 	assert.deepEqual([s2, d2.error, S.salida.length], [409, d.error, salida + 1]);
 	assert.equal(hijos('leads').length, 1);
+});
+
+await t('el mínimo de noches de la casa (el general y el de las fechas especiales) se revisa al guardar: menos noches, 409 { recargar } y no se guarda', async () => {
+	casa({ vacacional: { ...VAC, nochesMin: 3, minimos: [{ desde: masDias(20), hasta: masDias(27), noches: 5 }] } });
+	let [s, d] = await estado(cuerpo(bien({ llegada: masDias(10), salida: masDias(12) })));
+	assert.deepEqual([s, d.recargar, d.minimo], [409, true, 3], JSON.stringify(d));
+	[s, d] = await estado(cuerpo(bien({ llegada: masDias(21), salida: masDias(24) })));
+	assert.deepEqual([s, d.minimo], [409, 5], 'en las fechas especiales, el mayor');
+	assert.match((await (await pedir(cuerpo(bien({ llegada: masDias(21), salida: masDias(24) }), { idioma: 'en' }))).json()).error, /at least 5 nights/);
+	assert.equal(hijos('leads').length, 0);
+	assert.equal((await pedir(cuerpo(bien({ llegada: masDias(21), salida: masDias(26) })))).status, 200, '5 noches sí');
+	assert.equal((await pedir(cuerpo(bien({ llegada: masDias(10), salida: masDias(13) })))).status, 200, '3 noches fuera de las especiales sí');
+});
+
+await t('la limpieza o el depósito cambiaron después de publicar: lo que vio el cliente ya no es: 409 { recargar } y no se guarda', async () => {
+	// La página publicada cotizó con 50 de limpieza; la casa ya tiene 0 (y 0 de depósito).
+	casa({ vacacional: { ...VAC, limpieza: 50 } });
+	const vieja = bien();
+	casa({ vacacional: { ...VAC, limpieza: 0 } });
+	let [s, d] = await estado(cuerpo(vieja));
+	assert.deepEqual([s, d.recargar, d.precio], [409, true, true], JSON.stringify(d));
+	casa({ vacacional: { ...VAC, deposito: 200 } });
+	[s, d] = await estado(cuerpo(bien({ deposito: 0 })));
+	assert.deepEqual([s, d.precio], [409, true], 'el depósito también');
+	assert.equal(hijos('leads').length, 0);
+	assert.equal((await pedir(cuerpo(bien()))).status, 200, 'con lo de hoy, sí');
+});
+
+await t('el código de la reserva: lo pone el servidor, único (codigosReserva en la misma transacción; si sale uno ocupado, otro)', async () => {
+	const { guardarSolicitud, revisarPedido, CODIGO, codigoAlAzar } = await import('../netlify/functions/solicitud.mjs');
+	const { transaccion } = await import('../netlify/lib/firestore-escritura.mjs');
+	casa();
+	for (let i = 0; i < 200; i++) assert.match(codigoAlAzar(), CODIGO);
+	poner('codigosReserva/EQ-AAAAAA', { leadId: 'otra' });
+	const sale = ['EQ-AAAAAA', 'EQ-<b>x</b>', 'EQ-BBBBBB'];
+	const c = cuerpo(bien({ codigo: 'EQ-AAAAAA' }));
+	const hecho = await transaccion((tx) => guardarSolicitud(tx, c.leadId, c.token, revisarPedido(c), { azar: () => sale.shift() }));
+	assert.deepEqual(hecho, { token: c.token, codigo: 'EQ-BBBBBB' });
+	assert.deepEqual([leer(`chats/${c.token}`).codigo, leer(`leads/${c.leadId}`).reserva.codigo, leer('codigosReserva/EQ-BBBBBB').leadId, leer('codigosReserva/EQ-AAAAAA').leadId], ['EQ-BBBBBB', 'EQ-BBBBBB', c.leadId, 'otra']);
+	// La página de antes (en caché) manda su código y su resumen con él: no se usan.
+	const d = cuerpo(bien(), { mensaje: 'EQ-VIEJO1 · Solicitud de reserva' });
+	const r = await (await pedir(d)).json();
+	assert.equal(leer(`leads/${d.leadId}`).mensaje, `${r.codigo} · Solicitud de reserva`);
 });
 
 console.log(`${ok} pruebas de la solicitud por el servidor pasan.`);

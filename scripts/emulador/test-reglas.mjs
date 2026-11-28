@@ -370,6 +370,20 @@ const fotoConLlave = (t) => `https://firebasestorage.googleapis.com/v0/b/eqinmob
 	await espera('un asesor elimina la casa con sus contactos en un lote', lote('asesor7').then((s) => (s === 200 ? 200 : 403)), false);
 	await espera('el administrador elimina la casa con 480 contactos de huéspedes en un lote (control)', lote('admin1'), true);
 	await espera('el contacto de un huésped se fue con la casa', leer('admin1', 'properties/casa-a-borrar/privado/reserva-r3').then((s) => (s === 404 ? 200 : s)), true);
+	// La URL y el código que apartó una casa del socio (urlsCasas, codigosCasas): el administrador los busca y los suelta en
+	// el mismo lote que borra la casa; los de una casa que sigue, no. Nadie más los lee ni los borra.
+	const D = 'projects/demo-eq/databases/(default)/documents';
+	await poner('properties/casa-socio-a-borrar', { titulo: 'Del socio', agentId: 'a7', operacion: 'venta' });
+	await poner('urlsCasas/casa-del-socio', { propertyId: 'casa-socio-a-borrar' });
+	await poner('codigosCasas/IND-Z14-AA-009', { propertyId: 'casa-socio-a-borrar' });
+	await espera('el administrador busca lo que apartó una casa', consulta('admin1', 'urlsCasas', 'propertyId', 'casa-socio-a-borrar'), true);
+	await espera('un asesor busca lo que apartó una casa', consulta('asesor7', 'urlsCasas', 'propertyId', 'casa-socio-a-borrar'), false);
+	await espera('alguien de afuera busca los códigos apartados', consulta(null, 'codigosCasas', 'propertyId', 'casa-socio-a-borrar'), false);
+	await espera('el administrador suelta la URL de una casa que sigue', borrar('admin1', 'urlsCasas/casa-del-socio'), false);
+	const soltar = (quien) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [`${D}/urlsCasas/casa-del-socio`, `${D}/codigosCasas/IND-Z14-AA-009`, `${D}/properties/casa-socio-a-borrar`].map((d) => ({ delete: d })) }) }).then((r) => r.status);
+	await espera('un asesor elimina la casa y suelta lo que apartó', soltar('asesor7').then((s) => (s === 200 ? 200 : 403)), false);
+	await espera('el administrador elimina la casa y suelta su URL y su código en el mismo lote', soltar('admin1'), true);
+	await espera('la URL y el código quedan libres', Promise.all([leer('dueño', 'urlsCasas/casa-del-socio'), leer('dueño', 'codigosCasas/IND-Z14-AA-009')]).then((s) => (s.every((x) => x === 404) ? 200 : 403)), true);
 }
 await espera('cliente adjunta la foto de su comprobante', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: foto() }), true);
 // Con la foto, el cliente marca en el chat «adjuntó su comprobante» (hora del servidor): desde ahí el socio no cancela solo.
@@ -1187,6 +1201,14 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera(`${nombre} lista apartadasCasa`, consulta(quien, 'apartadasCasa'), false);
 		await espera(`${nombre} crea apartadasCasa`, lote(quien, [docu('apartadasCasa/otra', { lista: [] })]), false);
 		await espera(`${nombre} cambia apartadasCasa`, lote(quien, [{ update: { name: `${RAIZ}/apartadasCasa/casa1`, fields: campos({ lista: [] }) } }]), false);
+	}
+	// Los códigos de reserva ya dados (codigosReserva/{codigo}, los pone /api/solicitud para que no se repitan): solo el servidor.
+	await poner('codigosReserva/EQ-AAAAAA', { leadId: 'lead1', propertyId: 'casa1' });
+	for (const [quien, nombre] of [[null, 'sin sesión'], ['socio1', 'el socio'], ['admin1', 'el administrador']]) {
+		await espera(`${nombre} lee codigosReserva`, leer(quien, 'codigosReserva/EQ-AAAAAA'), false);
+		await espera(`${nombre} lista codigosReserva`, consulta(quien, 'codigosReserva'), false);
+		await espera(`${nombre} crea un código de reserva`, lote(quien, [docu('codigosReserva/EQ-BBBBBB', { leadId: 'x' })]), false);
+		await espera(`${nombre} borra un código de reserva`, lote(quien, [{ delete: `${RAIZ}/codigosReserva/EQ-AAAAAA` }]), false);
 	}
 	// Las alertas de «No se dio» con fechas ocupadas (alertas/bloqueo-{id}) también: solo el servidor, para que nadie
 	// las borre y el aviso salga otra vez, ni marque una como avisada para que no salga.

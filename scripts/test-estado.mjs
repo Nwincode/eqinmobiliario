@@ -148,4 +148,21 @@ await t('calendario: si deja de responder se marca «fallo» una vez y se conser
 	} finally { globalThis.fetch = fetchAntes; S.reloj = AHORA; }
 });
 
+await t('calendario al confirmar: con una plataforma que no responde y la base lenta, sus noches guardadas siguen bloqueando', async () => {
+	const { externasDe } = await import('../netlify/lib/ocupacion.mjs');
+	const fetchAntes = globalThis.fetch;
+	// Airbnb no responde hasta que se corta la espera; cada lectura de la base tarda 250 ms.
+	globalThis.fetch = (url, op) => new Promise((_, no) => op.signal.addEventListener('abort', () => no(new Error('abort'))));
+	poner('properties/c8/privado/icalLeido', { icalUrl: { url: 'https://airbnb.test/c8.ics', rangos: [{ desde: '2027-02-01', hasta: '2027-02-03' }], cuando: S.reloj - 3600_000 } });
+	S.lecturaDemora = 250;
+	try {
+		// Como reservas.mjs: la espera llega casi al plazo y lo que no termina a tiempo cuenta como «sin leer».
+		const plazo = new Promise((ok) => setTimeout(() => ok(null), 600));
+		const r = await Promise.race([externasDe({ icalUrl: 'https://airbnb.test/c8.ics' }, 'c8', { espera: 500, hasta: Date.now() + 600, fresco: true }), plazo]);
+		assert.ok(r, 'terminó dentro del plazo');
+		assert.deepEqual(r.rangos.map((x) => x.desde), ['2027-02-01'], 'bloquean las noches de la copia guardada');
+		assert.equal(r.deHace?.[0]?.nombre, 'Airbnb', 'y se dice que la copia es vieja');
+	} finally { globalThis.fetch = fetchAntes; S.lecturaDemora = 0; }
+});
+
 console.log(`${n} pruebas de estado del sistema pasan.`);

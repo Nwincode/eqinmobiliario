@@ -103,9 +103,12 @@ function sizesGaleria(n, i) {
 	return `(max-width: 767px) 100vw, ${i ? resto : principal}vw`;
 }
 
-function photoAlt(p, i = 0) {
-	const foto = p.fotos && p.fotos[i];
-	return (foto && foto.alt) || `${p.titulo} – ${lng(p) === 'en' ? 'photo' : 'foto'} ${i + 1}`;
+// Lo escrito a mano se respeta. «Título – foto N» lo guardaba el panel solo (hasta nov. 2026): se arma de nuevo con el
+// título y el orden de hoy, así una casa vieja no queda con el nombre o el número de antes.
+const ALT_AUTOMATICO = / – (foto|photo) \d+$/;
+export function photoAlt(p, i = 0) {
+	const alt = p.fotos?.[i]?.alt;
+	return (alt && !ALT_AUTOMATICO.test(alt) && alt) || `${p.titulo} – ${lng(p) === 'en' ? 'photo' : 'foto'} ${i + 1}`;
 }
 
 // Fondo con variante liviana para celulares cuando existe (/images/x-800.webp).

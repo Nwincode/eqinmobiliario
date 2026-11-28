@@ -17,13 +17,6 @@
 		y += Math.floor(m / 12); m = ((m % 12) + 12) % 12;
 		return y + '-' + pad(m + 1);
 	}
-	// Código corto de reserva, sin letras ni números que se confundan (0/O, 1/I).
-	function codigoReserva() {
-		var letras = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', n = new Uint8Array(6), c = 'EQ-';
-		crypto.getRandomValues(n);
-		for (var i = 0; i < n.length; i++) c += letras[n[i] % letras.length];
-		return c;
-	}
 	function diasDelMes(ym) { return new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate(); }
 
 	function iniciar(card) {
@@ -468,16 +461,17 @@
 				}
 				var c = V.cotizarEstancia({ plan: D.plan, llegada: estado.llegada, salida: estado.salida, limpieza: D.limpieza, deposito: D.deposito });
 				var n = selHuespedes ? Math.max(1, +selHuespedes.value || 1) : 1;
-				var codigo = codigoReserva();
 				return {
-					// Lo que ve el cliente al enviar: su código para dar seguimiento a la reserva.
-					gracias: fmt(t.vacCodigo, { codigo: codigo }),
+					// Lo que ve el cliente al enviar: su código para dar seguimiento a la reserva. El código lo pone el servidor
+					// (netlify/functions/solicitud.mjs) y llega con su respuesta: js/site.js pone {codigo}.
+					gracias: t.vacCodigo,
 					ver: t.vacChatVer,
 					datos: {
-						codigo: codigo, llegada: estado.llegada, salida: estado.salida, noches: c.noches, huespedes: n,
+						llegada: estado.llegada, salida: estado.salida, noches: c.noches, huespedes: n,
 						subtotal: c.subtotal, impuestos: c.impuestos, total: c.total, deposito: c.deposito, moneda: D.moneda || 'USD'
 					},
-					resumen: codigo + ' · ' + fmt(t.vacResumen, {
+					// (El servidor le pone el código delante.)
+					resumen: fmt(t.vacResumen, {
 						llegada: estado.llegada, salida: estado.salida, noches: noches(c.noches),
 						huespedes: n === 1 ? t.vacHuesped1 : fmt(t.vacHuespedesN, { n: n }), total: dinero(c.total)
 					})
@@ -511,6 +505,14 @@
 		// ocupa (la API trae también los bloqueos y las reservas de la casa).
 		var id = card.getAttribute('data-id');
 		function alDia(res) { ocupadas = V.nochesOcupadas(res.ocupadas); }
+		// El mínimo general, la limpieza y el depósito de hoy (lo que revisa el servidor al recibir la solicitud): un número
+		// cuenta aunque sea 0 (la limpieza que se quitó).
+		function condicionesAlDia(res) {
+			if (typeof res.nochesMin === 'number' && res.nochesMin >= 1) nochesMin = Math.floor(res.nochesMin);
+			if (res.minimos) minimos = res.minimos;
+			if (typeof res.limpieza === 'number') D.limpieza = res.limpieza;
+			if (typeof res.deposito === 'number') D.deposito = res.deposito;
+		}
 		// Justo antes de enviar, otra vez y sin la copia del CDN: alguien pudo pedir esas fechas con esta página abierta.
 		// Si ya no están libres, no se envía y se dice; si no responde, se envía (el servidor cierra la que llega encima).
 		if (form) form.eqRevisar = function () {
@@ -525,23 +527,24 @@
 					// Casa en pausa (atraso del socio): ya no se puede reservar; se dice en el cuadro, como al abrir la página.
 					if (res.pausada) { card.innerHTML = '<p class="mb-0">' + t.vacPausada + '</p>'; return false; }
 					alDia(res);
-					if (res.minimos) minimos = res.minimos;
-					// Precios al día: si el socio los cambió con esta página abierta, el total se recalcula y no se envía
-					// hasta que el cliente lo vea (si no, saldría cotizada por debajo y no se podría confirmar).
-					if (res.plan && res.plan.base > 0) {
-						var cotizar = function () { return V.cotizarEstancia({ plan: D.plan, llegada: estado.llegada, salida: estado.salida, limpieza: D.limpieza, deposito: D.deposito }).total; };
-						var antes = estado.llegada && estado.salida ? cotizar() : 0;
-						D.plan = res.plan; ponerDesde(D.plan);
-						if (antes && Math.abs(cotizar() - antes) > 0.005) {
-							actualizar();
-							var cajaP = statusBox();
-							if (cajaP) { cajaP.className = 'lead-form-status mt-3 text-danger'; cajaP.setAttribute('data-vac', '1'); cajaP.textContent = t.vacPrecioCambio; }
-							ayuda.textContent = t.vacPrecioCambio;
-							card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-							return false;
-						}
+					// Precios, limpieza y depósito al día: si el socio los cambió con esta página abierta, el total se recalcula y
+					// no se envía hasta que el cliente lo vea (el servidor tampoco la guardaría: 409 con `recargar`).
+					var cotizar = function () { var c = V.cotizarEstancia({ plan: D.plan, llegada: estado.llegada, salida: estado.salida, limpieza: D.limpieza, deposito: D.deposito }); return c.total + '|' + c.deposito; };
+					var antes = estado.llegada && estado.salida ? cotizar() : '';
+					condicionesAlDia(res);
+					if (res.plan && res.plan.base > 0) { D.plan = res.plan; ponerDesde(D.plan); }
+					if (antes && cotizar() !== antes) {
+						actualizar();
+						var cajaP = statusBox();
+						if (cajaP) { cajaP.className = 'lead-form-status mt-3 text-danger'; cajaP.setAttribute('data-vac', '1'); cajaP.textContent = t.vacPrecioCambio; }
+						ayuda.textContent = t.vacPrecioCambio;
+						card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+						return false;
 					}
-					if (V.validarEstancia({ llegada: estado.llegada, salida: estado.salida, ocupadas: ocupadas, nochesMin: nochesMin, minimos: minimos, hoy: hoy }).ok) return true;
+					var v = V.validarEstancia({ llegada: estado.llegada, salida: estado.salida, ocupadas: ocupadas, nochesMin: nochesMin, minimos: minimos, hoy: hoy });
+					if (v.ok) return true;
+					// El mínimo de noches subió: las fechas siguen, se dice el mínimo (form.eqReserva lo marca).
+					if (v.error === 'minimo') { pintar(false); actualizar(); form.eqReserva(); return false; }
 					estado.llegada = ''; estado.salida = ''; estado.campo = 'llegada'; estado.nota = t.vacFechasYaNo;
 					pintar(false);
 					actualizar();
@@ -562,7 +565,7 @@
 					if (res.pausada) { card.innerHTML = '<p class="mb-0">' + t.vacPausada + '</p>'; return; }
 					// Precios y mínimos al día: el socio los cambia sin esperar a que se publique el sitio.
 					if (res.plan && res.plan.base > 0) { D.plan = res.plan; ponerDesde(D.plan); }
-					if (res.minimos) minimos = res.minimos;
+					condicionesAlDia(res);
 					// Las personas que caben, al día: si el socio bajó el máximo, no se ofrece más (la base lo rechazaría).
 					if (res.huespedesMax && selHuespedes) {
 						Array.prototype.slice.call(selHuespedes.options).forEach(function (o) { if (+o.value > res.huespedesMax) o.remove(); });
@@ -655,12 +658,12 @@
 				// Con la respuesta al día, solo ella (ya trae bloqueos y reservas; una cancelada después de publicar queda libre);
 				// sin ella, lo publicado.
 				var ocupadas = V.nochesOcupadas(vivo.ocupadas || d.bloqueos || []);
-				var ok = !vivo.pausada && q.huespedes <= (vivo.huespedesMax || d.huespedesMax || 1) && V.validarEstancia({ llegada: q.llegada, salida: q.salida, ocupadas: ocupadas, nochesMin: d.nochesMin || 1, minimos: vivo.minimos || d.minimos, hoy: hoyB }).ok;
+				var ok = !vivo.pausada && q.huespedes <= (vivo.huespedesMax || d.huespedesMax || 1) && V.validarEstancia({ llegada: q.llegada, salida: q.salida, ocupadas: ocupadas, nochesMin: vivo.nochesMin || d.nochesMin || 1, minimos: vivo.minimos || d.minimos, hoy: hoyB }).ok;
 				col.hidden = !ok;
 				if (!ok) return;
 				libres++;
 				// El precio de la tarjeta pasa a ser el total de esas fechas (con limpieza e impuestos), que es lo que se compara.
-				var c = plan ? V.cotizarEstancia({ plan: plan, llegada: q.llegada, salida: q.salida, limpieza: d.limpieza }) : null;
+				var c = plan ? V.cotizarEstancia({ plan: plan, llegada: q.llegada, salida: q.salida, limpieza: typeof vivo.limpieza === 'number' ? vivo.limpieza : d.limpieza }) : null;
 				var precio = col.querySelector('.price span');
 				if (c && c.total > 0 && precio) {
 					precio.textContent = buscar.getAttribute(c.noches === 1 ? 'data-total1' : 'data-totaln')

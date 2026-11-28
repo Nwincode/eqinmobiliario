@@ -5,7 +5,7 @@ import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
 , mount, downloadCsv, cajaTabla, iconoBtn, menuMas, modal, errorMessage, elegirOpcion, ocupado, fallaDelServidor, botonNuevaCasa } from '../ui.js';
 import { renderForm, borrarFotosSinUso, uploadImage, procesarImagen, getPath, clonar } from '../form.js';
-import { session, agentOptions, loadAgents, markPending, trasGuardar, misCasas } from '../session.js';
+import { session, agentOptions, loadAgents, markPending, trasGuardar, misCasas, SALE_SOLA } from '../session.js';
 import { datosParaServidor, revisarCasaNueva } from '../casa-nueva.js';
 import { campoCalendarioEq } from '../calendario-eq.js';
 import { seoPreviewField, stripMd } from '../seo.js';
@@ -54,14 +54,6 @@ function llenarSeo(d) {
 	if (!String(seo.descripcion || '').trim() || seo.descripcion === auto.descripcion) seo.descripcion = auto.descripcion = autoDescription(d);
 	seo.auto = auto;
 	d.seo = seo;
-}
-// Descripción de cada foto para Google: si está vacía se pone «Título – foto N». Lo escrito a mano se respeta.
-// Devuelve true si cambió alguna.
-function llenarAltFotos(d) {
-	const titulo = String(d.titulo || '').trim();
-	if (!titulo || !(d.fotos || []).some((f) => !String(f.alt || '').trim())) return false;
-	d.fotos = d.fotos.map((f, i) => (String(f.alt || '').trim() ? f : { ...f, alt: `${titulo} – foto ${i + 1}` }));
-	return true;
 }
 
 
@@ -198,8 +190,9 @@ export function propiedadNueva(datos) {
 	return d;
 }
 // Borra una propiedad con todo lo suyo: lo privado (socio, llegada, acuerdo, la llave del calendario de EQ y lo último
-// leído de Airbnb/Booking/VRBO), el documento, sus fotos y su
-// renglón en la lista de casas de su dueño. Una sola para todo el panel: la usan la ficha y el listado.
+// leído de Airbnb/Booking/VRBO), el documento, la URL y el código que apartó si la subió el socio (urlsCasas, codigosCasas:
+// así otra casa puede usarlos), sus fotos y su renglón en la lista de casas de su dueño. Una sola para todo el panel: la
+// usan la ficha, el listado, «Cambios de un dueño» y las casas de ejemplo.
 export async function eliminarPropiedad(p) {
 	// Una casa por noche con huéspedes por venir no se borra; sin ellos, se borra también el contacto de sus huéspedes.
 	const reservas = p.operacion === 'vacacional' ? await deLaCasa(p.id) : [];
@@ -216,9 +209,14 @@ export async function eliminarPropiedad(p) {
 		sobran.slice(i, i + 480).forEach((ref) => parte.delete(ref));
 		await parte.commit();
 	}
+	// Lo que apartó al nacer (por su propertyId: la URL o el código pudieron cambiar después). Si no se pueden leer (p. ej.
+	// las reglas de antes), la casa se borra igual y quedan apartados, como antes.
+	const apartados = (await Promise.all(['urlsCasas', 'codigosCasas'].map((c) => getDocs(query(collection(db, c), where('propertyId', '==', p.id)))
+		.then((s) => s.docs.map((d) => d.ref), (err) => { console.warn(`No se pudo leer ${c} de la casa`, err); return []; })))).flat();
 	const lote = writeBatch(db);
 	contactos.slice(sobran.length).forEach((ref) => lote.delete(ref));
 	for (const privado of ['socio', 'llegada', 'acuerdo', 'calendario', 'icalLeido']) lote.delete(doc(db, 'properties', p.id, 'privado', privado));
+	apartados.forEach((ref) => lote.delete(ref));
 	lote.delete(doc(db, 'properties', p.id));
 	await lote.commit();
 	await borrarFotos(p);
@@ -355,7 +353,7 @@ function canEdit(p) {
 
 // Quién y cuándo, para el historial de estados (serverTimestamp no se permite dentro de arreglos).
 function autor() {
-	return { fecha: Timestamp.now(), por: session.profile?.nombre || session.user?.email || '', porUid: session.user?.uid || '' };
+	return { fecha: Timestamp.now(), porUid: session.user?.uid || '' };
 }
 export const entradaHistorial = (estado) => entradaEstado(estado, autor());
 
@@ -732,7 +730,6 @@ export async function render(container, [id]) {
 			const antes = JSON.stringify(d.seo || {});
 			llenarSeo(d);
 			if (JSON.stringify(d.seo) !== antes) cambios.seo = d.seo;
-			if (llenarAltFotos(d)) cambios.fotos = d.fotos;
 			const en = d.en || {};
 			if (faltaIngles(d)) cambios.en = await traducirEn(d);
 			if (Object.keys(cambios).length) await guardarMasa(cambios, cambios)(p);
@@ -755,7 +752,6 @@ export async function render(container, [id]) {
 				const cambios = { descripcion: t.descripcion, descripcionAnterior: p.descripcion || '' };
 				if (!String(d.ciudad || '').trim() && /^zona\s*\d+/i.test(String(d.zona || '').trim())) cambios.ciudad = d.ciudad = 'Guatemala';
 				llenarSeo(d); cambios.seo = d.seo;
-				if (llenarAltFotos(d)) cambios.fotos = d.fotos;
 				cambios.en = {
 					titulo: t.en.titulo, descripcion: t.en.descripcion, amenidades: amenidadesEnDe({ amenidades: d.amenidades, en: t.en }), amenidadesDe: [...(d.amenidades || [])],
 					seo: { titulo: autoSeoTitle({ ...d, titulo: t.en.titulo }, true), descripcion: recortar(resumenSeo(t.en.descripcion), 155) },
@@ -1107,7 +1103,6 @@ function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = ''
 			path: (d) => `${d.vip ? '/vip/' : '/propiedad/'}${slugify(d.slug || d.titulo || '')}/`,
 			checks: (d) => [
 				[(d.fotos || []).length >= 5, `${(d.fotos || []).length} fotos (recomendado: 5 o más).`],
-				[(d.fotos || []).length > 0 && d.fotos.every((f) => f.alt), 'Todas las fotos tienen descripción.'],
 				[stripMd(d.descripcion).split(/\s+/).filter(Boolean).length >= 80, 'Descripción de al menos 80 palabras (Google premia el contenido original).'],
 				[Boolean(d.zona), 'Tiene zona (aparece en las búsquedas por zona).'],
 				...[['', d.seo?.descripcion], [' en inglés', d.en?.seo?.descripcion]].filter(([, t]) => propiaCorta(t))
@@ -1420,7 +1415,6 @@ async function renderEditor(container, id, emb = null) {
 			llenarSeo(conPublico);
 			d.seo = conPublico.seo;
 		}
-		llenarAltFotos(d);
 		btn.disabled = true;
 		// La casa como quedó guardada (con lo que otras pantallas escribieron mientras tanto).
 		let guardada = null;
@@ -1580,7 +1574,7 @@ async function renderEditor(container, id, emb = null) {
 		if (errores.length) return form.marcar(errores);
 		const r = await alServidorCasaNueva({ casa: ref.id, datos });
 		if (r.errores?.length) return form.marcar(r.errores);
-		toast(r.publicaSola ? 'Publicada. Sale en la página en unos minutos.' : 'Publicada. Sale en la página cuando el equipo publique el sitio.');
+		toast(r.publicaSola ? `Publicada. ${SALE_SOLA}` : 'Publicada. Sale en la página cuando el equipo publique el sitio.');
 		if (emb) emb.alGuardar({ id: ref.id, ...datos });
 	});
 	const saveBtn = h('button', { class: 'btn btn-primary', onclick: (e) => save(e.currentTarget) }, paraSocio ? 'Publicar' : 'Guardar');

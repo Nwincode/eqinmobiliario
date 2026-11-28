@@ -143,6 +143,24 @@ test('iCal de Airbnb: fechas (DATE y DATE-TIME), líneas plegadas, sin DTEND', (
 	]);
 	igual(V.parseICal(''), []);
 });
+test('iCal: hora UTC al día de Guatemala (UTC−6), DURATION sin DTEND, eventos cancelados no ocupan; día completo a medianoche UTC queda igual', () => {
+	const cal = (...ev) => ['BEGIN:VCALENDAR', ...ev.flatMap((e) => ['BEGIN:VEVENT', ...e, 'END:VEVENT']), 'END:VCALENDAR'].join('\r\n');
+	// 20:00 del 5 de dic en Guatemala (02:00 Z del 6) a 10:00 del 7 (16:00 Z).
+	igual(V.parseICal(cal(['DTSTART:20261206T020000Z', 'DTEND:20261207T160000Z'])), [{ desde: '2026-12-05', hasta: '2026-12-07' }]);
+	// Sin «Z»: el día escrito (hora local o con TZID).
+	igual(V.parseICal(cal(['DTSTART;TZID=America/Guatemala:20261206T020000', 'DTEND;TZID=America/Guatemala:20261208T100000'])), [{ desde: '2026-12-06', hasta: '2026-12-08' }]);
+	// DURATION (antes o después de DTSTART), en días, semanas u horas.
+	igual(V.parseICal(cal(['DURATION:P3D', 'DTSTART;VALUE=DATE:20261205'])), [{ desde: '2026-12-05', hasta: '2026-12-08' }]);
+	igual(V.parseICal(cal(['DTSTART;VALUE=DATE:20261210', 'DURATION:P1W'])), [{ desde: '2026-12-10', hasta: '2026-12-17' }]);
+	igual(V.parseICal(cal(['DTSTART:20261220T210000Z', 'DURATION:PT40H'])), [{ desde: '2026-12-20', hasta: '2026-12-22' }]);
+	// Cancelado (STATUS antes o después de las fechas): no ocupa.
+	igual(V.parseICal(cal(['STATUS:CANCELLED', 'DTSTART;VALUE=DATE:20261205', 'DTEND;VALUE=DATE:20261207'], ['DTSTART;VALUE=DATE:20261210', 'DTEND;VALUE=DATE:20261211', 'STATUS:CONFIRMED'])),
+		[{ desde: '2026-12-10', hasta: '2026-12-11' }]);
+	// Un día completo escrito a medianoche UTC en los dos lados: los días escritos (pasarlo a Guatemala liberaría la última noche).
+	igual(V.parseICal(cal(['DTSTART:20261205T000000Z', 'DTEND:20261208T000000Z'])), [{ desde: '2026-12-05', hasta: '2026-12-08' }]);
+	// Uno solo a medianoche y el otro con hora: los dos pasan a Guatemala.
+	igual(V.parseICal(cal(['DTSTART:20261205T000000Z', 'DTEND:20261208T170000Z'])), [{ desde: '2026-12-04', hasta: '2026-12-08' }]);
+});
 
 // ---- Precio por noche (base, fin de semana, tarifas por fechas)
 const planSocio = { base: 100, finde: 150, tarifas: [{ desde: '2026-12-24', hasta: '2026-12-25', precio: 200 }] };

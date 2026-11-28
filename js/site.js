@@ -327,8 +327,9 @@
 			var button = form.querySelector('button[type=submit]');
 			button.disabled = true;
 
-			// «chat»: token de la conversación de la reserva (vacío si no se pudo abrir).
-			var done = function (chat) {
+			// «chat»: token de la conversación de la reserva (vacío si no se pudo abrir); «codigo»: el de la reserva, el que
+			// puso el servidor.
+			var done = function (chat, codigo) {
 				// Conversiones mejoradas de Google Ads: gtag cifra (SHA-256) el correo y el teléfono
 				// antes de enviarlos; mejoran la atribución de anuncios sin exponer los datos.
 				if (window.gtag) {
@@ -342,7 +343,7 @@
 				form.reset();
 				if (!reserva) return setStatus(form, T.gracias, true);
 				// Reserva: todo sigue dentro del sitio, en la página de la reserva (solicitud, estado y chat).
-				setStatus(form, reserva.gracias + (chat ? ' <a class="btn btn-primary btn-sm mt-2" href="' + window.EQChat.enlace(chat, EN) + '"><span class="icon-comments eq-ic" aria-hidden="true"></span>' + reserva.ver + '</a>' : ''), true);
+				setStatus(form, String(reserva.gracias).replace('{codigo}', String(codigo || '').replace(/[<>&]/g, '')) + (chat ? ' <a class="btn btn-primary btn-sm mt-2" href="' + window.EQChat.enlace(chat, EN) + '"><span class="icon-comments eq-ic" aria-hidden="true"></span>' + reserva.ver + '</a>' : ''), true);
 				if (chat) location.href = window.EQChat.enlace(chat, EN);
 			};
 			// Lo que el servidor de reservas explica (la llegada ya pasó, la casa ya no recibe, demasiados envíos) se dice tal
@@ -353,6 +354,9 @@
 				// Un 503 que no pasó con sus reintentos: «Hay muchas solicitudes en este momento…», no el aviso de siempre.
 				var motivo = err && [403, 409, 429, 503].indexOf(err.status) > -1 && err.datos && err.datos.error ? String(err.datos.error) : '';
 				setStatus(form, (motivo ? motivo.replace(/[<>&]/g, '') + ' ' : T.fallo) + wa, false);
+				// El precio, la limpieza o el mínimo de noches cambiaron (409 con `recargar`): el cuadro de reserva los pone al día
+				// y, si cambió el total, lo dice (js/vacacional.js eqRevisar).
+				if (err && err.status === 409 && err.datos && err.datos.recargar && typeof form.eqRevisar === 'function') form.eqRevisar();
 			};
 
 			if (!config.projectId) {
@@ -398,7 +402,7 @@
 					});
 				};
 				enviar(0)
-					.then(function (token) { guardarPendiente(form, null); window.EQChat.avisar(token); done(token); }, function (err) {
+					.then(function (hecho) { guardarPendiente(form, null); window.EQChat.avisar(hecho.token); done(hecho.token, hecho.codigo); }, function (err) {
 						// Sin respuesta (red) o el servidor falló: se guarda para reintentar la misma; un «no» del servidor, no.
 						// (Con 429 tampoco se suelta: el aviso dice en cuántos minutos volver a intentar, con la misma.)
 						var minutos = err && err.status === 429 && err.datos && Number(err.datos.reintentarEn);

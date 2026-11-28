@@ -67,6 +67,8 @@ t('confirmar y lo que depende del día de llegada usan la hora del servidor, no 
 		assert.doesNotMatch(fuente(f), /llegadaPasada\([^)]*\.llegada\)/, `toda llegadaPasada de ${f} lleva la hora del servidor`);
 	}
 	assert.match(fuente('solicitudes-base.js'), /await ahoraServidor\(\);/);
+	// El socio arma la solicitud desde el chat: lleva la marca del mínimo al pedirla (motivoParaNoConfirmar la usa).
+	assert.match(fuente('solicitudes-base.js'), /c\.minimoAlPedir === true \? \{ minimoAlPedir: true \}/);
 	assert.match(fuente('views/solicitudes.js'), /await (Promise\.all\(\[)?cargarSolicitudes\(/);
 });
 

@@ -120,7 +120,8 @@ export function revisarCasaNueva({ datos = {}, casaId, bucket, origenes, dueno =
 	}
 	if (casa.tipo && casa.operacion && !tipoAplica(casa.tipo, casa.operacion)) falla('tipo', 'Tipo', 'una casa por noche es casa, apartamento o finca');
 	// Fotos: de 5 a 40, sin repetir, todas de la carpeta de esta casa. La descripción de cada una (para Google) la que
-	// escribió, sin contacto; si la dejó vacía, «Título – foto N».
+	// escribió, sin contacto; si la dejó vacía, vacía: el sitio la arma al publicar con el título de ese día
+	// (scripts/lib/templates.mjs photoAlt).
 	// `marca` (ya lleva la marca de agua) no se acepta de quien manda: con ella, la acción del equipo «Poner marca de agua»
 	// se la saltaría a una foto que no la tiene. La ficha del socio siempre se la pone al subirla.
 	const fotos = Array.isArray(datos.fotos) ? datos.fotos.map((f) => { const { marca, ...limpia } = fotoLimpia(f); return limpia; }) : [];
@@ -128,10 +129,9 @@ export function revisarCasaNueva({ datos = {}, casaId, bucket, origenes, dueno =
 	else if (fotos.length > MAX_FOTOS) falla('fotos', 'Fotos', `hasta ${MAX_FOTOS}`);
 	else if (new Set(fotos.map((f) => f.path)).size !== fotos.length) falla('fotos', 'Fotos', 'hay una repetida');
 	else if (revisarOrigen && fotos.some((f) => !fotoDeLaCasa(f, casaId, bucket, origenes))) falla('fotos', 'Fotos', 'una de las fotos no es de esta casa: súbela de nuevo');
-	const titulo = casa.titulo || '';
 	const conContacto = fotos.find((f) => f.alt && sinContacto(f.alt));
 	if (conContacto) falla('fotos', 'Descripción de una foto', `«${conContacto.alt}» ${sinContacto(conContacto.alt)}`);
-	casa.fotos = fotos.map((f, i) => ({ ...f, alt: String(f.alt || '').trim() || `${titulo} – foto ${i + 1}` }));
+	casa.fotos = fotos.map(({ alt, ...f }) => (String(alt || '').trim() ? { ...f, alt: String(alt).trim() } : f));
 	// El asesor: el que elige el colaborador (de los activos) o el que atiende al dueño. Por noche, ninguno.
 	const elegido = String(datos.agentId || '');
 	if (vac) casa.agentId = '';
@@ -143,7 +143,7 @@ export function revisarCasaNueva({ datos = {}, casaId, bucket, origenes, dueno =
 	return { errores, casa, socio, llegada };
 }
 
-// La casa lista para guardar: lo revisado más lo que pone el sistema. `quien`: { fecha, por, porUid }. `extra`: dueño,
+// La casa lista para guardar: lo revisado más lo que pone el sistema. `quien`: { fecha, porUid } (sin nombre: la casa se lee desde afuera). `extra`: dueño,
 // URL, código y lo de siempre (publicada al momento, disponible). La de por noche lleva sus precios públicos (los del
 // socio más el margen de siempre) y su privado/socio con ese margen.
 export function armarCasaNueva(revisada, extra = {}) {

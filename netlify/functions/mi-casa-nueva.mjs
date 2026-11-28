@@ -112,7 +112,7 @@ async function codigoLibre(tx, id, casa, activos, codigos) {
 async function crear(tx, socio, id, datos, { slugs, codigos }) {
 	if (await porCrear.enTransaccion(tx, socio.uid)) falla(429, 'Ya subiste muchas casas hoy: sigue mañana o escríbenos.');
 	const { r, dueno, activos } = await revisar(tx, socio, id, datos);
-	const quien = { fecha: new Date(), por: socio.nombre || 'Dueño', porUid: socio.uid };
+	const quien = { fecha: new Date(), porUid: socio.uid };
 	const listos = armarCasaNueva(r, {
 		propietarioId: socio.propietarioId,
 		slug: await urlLibre(tx, id, r.casa.titulo, slugs),

@@ -351,10 +351,27 @@
 
 	// ---------------------------------------------------------------- iCal (Airbnb, Booking…)
 	// Devuelve solo fechas: [{ desde, hasta }]. No guarda nombres ni descripciones.
-	function fechaIcal(valor) {
-		var m = /^(\d{4})(\d{2})(\d{2})/.exec(String(valor || '').trim());
-		return m ? m[1] + '-' + m[2] + '-' + m[3] : '';
+	// Cada valor: un día (VALUE=DATE, «20261205») o un momento («20261205T150000»; con «Z» al final es hora UTC y se pasa
+	// al día de Guatemala, UTC−6: «20261206T020000Z» es el 5 de dic a las 20:00). Sin «Z» (hora local o con TZID), el día
+	// escrito. Un evento sin DTEND usa DURATION (P3D, P1W, PT36H…); sin los dos, una noche. STATUS:CANCELLED no ocupa.
+	// Un día completo escrito como medianoche UTC en los dos lados («T000000Z» → «T000000Z») queda como los días escritos:
+	// así lo mandan algunas plataformas, y pasarlo a Guatemala correría el bloqueo un día antes y liberaría su última noche.
+	function momentoIcal(valor) {
+		var m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?/.exec(String(valor || '').trim().toUpperCase());
+		if (!m) return null;
+		var dia = m[1] + '-' + m[2] + '-' + m[3];
+		if (!esFecha(dia)) return null;
+		var ms = m[4] ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)) : null;
+		return { dia: dia, ms: ms, utc: Boolean(m[7]), medianoche: Boolean(m[7]) && m[4] === '00' && m[5] === '00' && (m[6] || '00') === '00' };
 	}
+	// DURATION en milisegundos (P[n]W o P[n]DT[n]H[n]M[n]S); 0 si no se entiende.
+	function duracionIcal(valor) {
+		var m = /^\+?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(String(valor || '').trim().toUpperCase());
+		if (!m) return 0;
+		return ((+(m[1] || 0) * 7 + +(m[2] || 0)) * 24 * 3600 + +(m[3] || 0) * 3600 + +(m[4] || 0) * 60 + +(m[5] || 0)) * 1000;
+	}
+	// El día (Guatemala) de un momento: con «Z», la hora UTC menos 6 h (salvo `completo`: el día escrito); si no, el día escrito.
+	function diaIcal(x, completo) { return x.utc && !completo ? hoy(x.ms) : x.dia; }
 	function parseICal(texto) {
 		var lineas = String(texto || '').replace(/\r\n?/g, '\n').replace(/\n[ \t]/g, '').split('\n');
 		var out = [];
@@ -362,19 +379,30 @@
 		lineas.forEach(function (l) {
 			if (/^BEGIN:VEVENT/i.test(l)) { ev = {}; return; }
 			if (/^END:VEVENT/i.test(l)) {
-				if (ev && ev.desde) {
-					var hasta = ev.hasta && ev.hasta > ev.desde ? ev.hasta : sumarDias(ev.desde, 1);
-					out.push({ desde: ev.desde, hasta: hasta });
+				// Se resuelve al cerrar el evento: DURATION y STATUS pueden venir antes que DTSTART.
+				if (ev && ev.inicio && !ev.cancelado) {
+					var ini = ev.inicio, fin = ev.fin, hasta = '';
+					// Día completo escrito a medianoche UTC: el inicio y el final (si lo hay) los dos a las 00:00 Z.
+					var completo = ini.medianoche && (!fin || fin.medianoche);
+					var desde = diaIcal(ini, completo);
+					if (fin) hasta = diaIcal(fin, completo);
+					else if (ev.duracion && ini.ms == null) hasta = sumarDias(ini.dia, Math.max(1, Math.ceil(ev.duracion / DIA)));
+					else if (ev.duracion) hasta = ini.utc && !completo ? hoy(ini.ms + ev.duracion) : new Date(ini.ms + ev.duracion).toISOString().slice(0, 10);
+					if (!hasta || hasta <= desde) hasta = sumarDias(desde, 1);
+					out.push({ desde: desde, hasta: hasta });
 				}
 				ev = null;
 				return;
 			}
 			if (!ev) return;
+			if (/^STATUS(;[^:]*)?:\s*CANCELLED\s*$/i.test(l)) { ev.cancelado = true; return; }
+			var d = /^DURATION(;[^:]*)?:(.*)$/i.exec(l);
+			if (d) { ev.duracion = duracionIcal(d[2]); return; }
 			var m = /^(DTSTART|DTEND)(;[^:]*)?:(.*)$/i.exec(l);
 			if (!m) return;
-			var f = fechaIcal(m[3]);
-			if (!esFecha(f)) return;
-			if (m[1].toUpperCase() === 'DTSTART') ev.desde = f; else ev.hasta = f;
+			var x = momentoIcal(m[3]);
+			if (!x) return;
+			if (m[1].toUpperCase() === 'DTSTART') ev.inicio = x; else ev.fin = x;
 		});
 		return unirRangos(out);
 	}
@@ -483,6 +511,10 @@
 	//   'crudo': en el texto tal como llegó; el resto, en minúsculas.
 	var UNIDAD = '(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oó]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oó]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[ií]as|d[ií]a|horas|hora|hrs|hr|personas|adultos|ni[ñn]os|hu[eé]spedes|habitaciones|cuartos|camas|ba[ñn]os|parqueos|de limpieza|de dep[oó]sito|de terreno|de construcci[oó]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)';
 	var LETRA = 'a-záéíóúñü';
+	// Un precio con su moneda y comas de miles, en mil exactos (ver el paso 5).
+	var PRECIO_ANTES = '(^[^0-9]?|[^0-9]{2})', PRECIO_DESPUES = '([^0-9' + LETRA + ']?[' + LETRA + ']|[^0-9' + LETRA + ']?$|[^0-9' + LETRA + ']{2})';
+	var PRECIO_SOLO = PRECIO_ANTES + '(\\bq\\.?|\\bus\\$|\\$|\\busd)[ \\t]?[0-9]{1,3}(,[0-9]{3})?,000(\\.[0-9]{1,2})?' + PRECIO_DESPUES
+		+ '|' + PRECIO_ANTES + '[0-9]{1,3}(,[0-9]{3})?,000(\\.[0-9]{1,2})?[ \\t]*(quetzales|d[oó]lares)' + PRECIO_DESPUES;
 	// Un usuario de otra plataforma o de un correo: con la forma de uno (lleva cifras, punto o guion bajo: «villa.lago»,
 	// «ana_88», «anaperez90»). Una palabra de diccionario no («Mi correo es obligatorio», «Mi whatsapp es lento»); en una
 	// red social (REDES), una palabra pura sí cuenta donde no cabe otra cosa («mi insta es villalago», «ig juanlago»: el paso
@@ -654,6 +686,13 @@
 		// de Guatemala (8 cifras que empiezan de 2 a 7) o uno internacional (10 o más), lleve lo que lleve delante («ref»,
 		// «vuelo», «Q», «No.»…). «Son Q2345 y Q5678» o «boleta 70012345» se bloquean: preferible a dejar pasar un teléfono
 		// (el aviso le dice que suba el comprobante en foto). Una «x» suelta entre números no corta un teléfono.
+		// Antes, un precio: con su moneda delante (Q, Q., $, US$, USD) o detrás (quetzales, dólares), con comas de miles y
+		// en mil exactos, hasta 999 millones («Q25,000,000», «US$ 22,500,000.00», «40,000,000 quetzales»). Sin «,000» al
+		// final no es un precio: «Q55,551,234» es un teléfono disfrazado y se bloquea; con más cifras, tampoco (internacional).
+		// Solo si no hay otra cifra pegada o a un signo, antes ni después: «5555 $1,000» o «Q2,420,000 3000» son un teléfono
+		// partido y siguen bloqueados; «Q50,000,000, 600 v2» (coma y espacio) pasa. Va dos veces: dos precios seguidos («Q25,000,000 o Q30,000,000») comparten el espacio.
+		['cambia', PRECIO_SOLO, ' x '],
+		['cambia', PRECIO_SOLO, ' x '],
 		['cambia', '[ \\t]x[ \\t]', ' * '],
 		['si', '(^|[^0-9])[2-7]([^0-9' + LETRA + ']{0,3}[0-9]){7}|[0-9]([^0-9' + LETRA + ']{0,3}[0-9]){9}', 0, 'telefono'],
 		// 6. Lo que queda: dos grupos de 4 con palabras en medio («5555 y luego 1234»). Las excepciones de aquí abajo solo

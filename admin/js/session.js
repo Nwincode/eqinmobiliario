@@ -104,6 +104,10 @@ export async function markPending(descripcion) {
 // `automatica`: la lanzó la publicación automática (se dice así en «Última publicación»).
 // Lo que tarda Netlify en poner el sitio al día después de aceptar la publicación (el mismo texto en todo el panel).
 export const TIEMPO_PUBLICACION = '2 a 4 minutos';
+// Lo que tarda en salir lo que el socio publica él solo (/api/mi-casa y /api/mi-casa-nueva responden `publicaSola`): el
+// servidor espera 12 minutos sin cambios nuevos, revisa cada 10 (netlify/functions/publicar-pendiente.mjs) y Netlify
+// tarda sus 2 a 4. El mismo texto en «Mis propiedades» y en la casa nueva.
+export const SALE_SOLA = 'Sale en la página en unos 20 minutos.';
 export async function publicarAhora({ automatica = false } = {}) {
 	const res = await fetch('/api/publicar', { method: 'POST', headers: { Authorization: `Bearer ${await session.user.getIdToken()}` }, body: JSON.stringify({ automatica }) });
 	const cuerpo = await res.json().catch(() => ({}));

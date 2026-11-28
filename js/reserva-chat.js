@@ -110,7 +110,8 @@
 
 	// Manda una solicitud de reserva al servidor (netlify/functions/solicitud.mjs), que guarda juntos la solicitud, su chat
 	// y su índice. `lead` (lo del formulario) y `r` (lo cotizado) ya vienen revisados por la página. El id y el token se
-	// ponen una vez por solicitud: si se reintenta (corte de red), el servidor reconoce que ya quedó. Devuelve el token.
+	// ponen una vez por solicitud: si se reintenta (corte de red), el servidor reconoce que ya quedó. Devuelve { token,
+	// codigo }: el código de la reserva lo pone el servidor.
 	function solicitar(lead, r, turnstile) {
 		lead.id = lead.id || alAzar(20);
 		lead.token = lead.token || alAzar(28);
@@ -128,7 +129,7 @@
 					if (!res.ok || !d.token) throw Object.assign(new Error(d.error || 'HTTP ' + res.status), { status: res.status, datos: d });
 					// Y de qué casa es: si vuelve a la ficha (botón «atrás»), ve el enlace a su solicitud (js/vacacional.js).
 					try { localStorage.setItem(GUARDADO, d.token); localStorage.setItem(GUARDADO + '-casa', lead.propertyId || ''); localStorage.setItem(GUARDADO + '-idioma', lead.idioma || 'es'); } catch (e) { /* sin memoria del navegador */ }
-					return d.token;
+					return { token: d.token, codigo: d.codigo || '' };
 				});
 			});
 	}

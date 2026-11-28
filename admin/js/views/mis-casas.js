@@ -12,7 +12,7 @@
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, collection, query, where, runTransaction, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, flecha, dia, badge, formatPrice, elegirOpcion, confirmDialog, fallaDelServidor, botonNuevaCasa } from '../ui.js';
-import { session, markPending, cargarMiResumen, misCasas } from '../session.js';
+import { session, markPending, cargarMiResumen, misCasas, SALE_SOLA } from '../session.js';
 import { prefijoMoneda, decimales, nNoches, dineroPorMoneda, nombreMes, moverMes, dineroCorto } from '../formato.js';
 import { filaCasa, publicUrl } from '../ficha-casa.js';
 import { resumenCasa, cabeceraCasa, estadoCasa } from '../resumen-casa.js';
@@ -577,7 +577,7 @@ async function laCasa(container, id) {
 			if (!res.ok) throw new Error(cuerpo.error || fallaDelServidor(res.status));
 			base = d;
 			// Si el sitio no se publica solo (apagado, o la última publicación falló), lo publica el equipo.
-			toast(cuerpo.publicaSola ? 'Guardado. Sale en la página en unos minutos.' : 'Guardado. Sale en la página cuando el equipo publique el sitio.');
+			toast(cuerpo.publicaSola ? `Guardado. ${SALE_SOLA}` : 'Guardado. Sale en la página cuando el equipo publique el sitio.');
 		} catch (err) { showError(err); }
 		finally { boton.disabled = false; }
 	};

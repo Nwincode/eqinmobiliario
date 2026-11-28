@@ -1,6 +1,7 @@
 import { db, doc, getDoc, getDocs, setDoc, collection, query, limit, runTransaction, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, pageHeader, formatDate, confirmDialog, mount, fallaDelServidor, errorMessage } from '../ui.js';
 import { plural } from '../formato.js';
+import { FASES_MIGRACION } from '../hilo.js';
 import { session, getPublishState, publicarAhora, olvidarConfigPublicacion, AUTO_SEGUNDOS, autoPublicacionEnEspera, TIEMPO_PUBLICACION } from '../session.js';
 import { cargarDemos, borrarDemos } from '../demo.js';
 
@@ -110,7 +111,7 @@ function tarjetaAvisos() {
 const NOMBRES_MIGRACION = [['archivos', 'foto a su carpeta', 'fotos a su carpeta'], ['fotos', 'mensaje con foto', 'mensajes con foto'],
 	['notas', 'nota del equipo', 'notas del equipo'], ['llaves', 'archivo con enlace abierto', 'archivos con enlace abierto'],
 	['comprobantes', 'comprobante de comisión', 'comprobantes de comisión'], ['indices', 'chat sin índice', 'chats sin índice'],
-	['revisiones', 'revisión oculta', 'revisiones ocultas']];
+	['revisiones', 'revisión oculta', 'revisiones ocultas'], ['nombres', 'casa con nombres en su historial', 'casas con nombres en su historial']];
 const cifrasMigracion = (c) => NOMBRES_MIGRACION.filter(([k]) => c[k] > 0).map(([k, uno, varios]) => plural(c[k], uno, varios)).join(', ');
 
 function tarjetaMigracion(hecha) {
@@ -149,7 +150,7 @@ function tarjetaMigracion(hecha) {
 	const boton = (texto, icono, fn, cls = 'btn-outline-primary') => h('button', { type: 'button', class: `btn ${cls}`, onclick: (e) => fn(e.currentTarget) },
 		h('span', { class: `${icono} me-2`, 'aria-hidden': 'true' }), texto);
 	if (hecha) cuerpo.append(final(`Todo está en el formato nuevo desde el ${formatDate(hecha.hecha, false)}.`));
-	else cuerpo.append(h('p', { class: 'small text-muted' }, 'Fotos, notas y comprobantes de los chats de antes. Primero dice qué cambiaría.'),
+	else cuerpo.append(h('p', { class: 'small text-muted' }, 'Fotos, notas y comprobantes de los chats de antes, y nombres en el historial de las casas. Primero dice qué cambiaría.'),
 		boton('Pasar datos al formato nuevo', 'icon-exchange', correr));
 	return h('div', { class: 'card mb-3', id: 'migrar-chats' }, h('div', { class: 'card-body' }, h('h2', { class: 'h6' }, 'Datos de antes'), cuerpo));
 }
@@ -308,7 +309,8 @@ export async function render(container) {
 			h('p', { class: 'small text-muted' }, 'En Netlify: Site configuration → Build & deploy → Build hooks → Add build hook (nombre "Panel", rama de producción). Copia el enlace y pégalo aquí.'),
 			h('div', { class: 'input-group' }, hookInput, h('button', { class: 'btn btn-outline-primary', onclick: saveHook }, 'Guardar')))) : null,
 		session.isAdmin ? tarjetaAvisos() : null,
-		session.isAdmin ? tarjetaMigracion(migracion) : null,
+		// Hecha con todas las fases de hoy; una pasada de antes (sin `fases`, o con menos) o a medias vuelve a ofrecer el botón.
+		session.isAdmin ? tarjetaMigracion(migracion?.hecha && migracion.fases >= FASES_MIGRACION ? migracion : null) : null,
 		baseVacia ? h('div', { class: 'card border-info' }, h('div', { class: 'card-body' },
 			h('h2', { class: 'h6' }, 'Importar los datos actuales del sitio'),
 			h('p', { class: 'small text-muted' }, 'La base de datos está vacía. Importa los textos, propiedades, asesores y reseñas que ya tiene el sitio para empezar a editarlos desde aquí.'),
