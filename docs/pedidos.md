@@ -119,3 +119,4 @@
 - [x] 2026-11-28 «Continua» → PR #163 unido (ubicación por listas, datos de pago, pedidos del socio, cierre).
 - [x] 2026-11-28 «Ya el uso se reinicio» → PR #163 unido (ubicación por listas, datos de pago, pedidos del socio, cierre).
 - [x] 2026-11-28 «Instrucciones» → pasos para publicar firestore.rules y storage.rules y correr «Pasar datos al formato nuevo».
+- [~] 2026-11-28 «Adicional crea un instructivo en pdf para los socios y propietarios de como subir, modificar administrar y ya sabes que más, sobre sus propiedades de vacaciones y demás partes de la plataforma y como usarla junto con el uso de mensajes e interacción un roadmap explicado de toda la interacción desde el ingreso hasta el cierre del alquiler vacaciones super explicado y bien visual» → en curso: PDF con capturas reales (datos inventados), roadmap del alquiler por noche de punta a punta, mensajes, pagos y preguntas frecuentes; con revisor aparte.
