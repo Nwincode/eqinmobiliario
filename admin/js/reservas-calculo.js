@@ -255,7 +255,9 @@ export function motivoParaNoConfirmar(lead, casa, montos, ahora = Date.now()) {
 	const moneda = casa.moneda || 'USD';
 	if ((lead?.reserva?.moneda || 'USD') !== moneda || (montos && montos.moneda !== moneda)) return 'La casa cambió de moneda después de esta solicitud: no se puede confirmar así. Ciérrala con «No se dio» y que el cliente la pida otra vez.';
 	// Menos noches que el mínimo de la casa (el general o el de esas fechas, guardados hoy): la misma regla de la página.
-	const corta = minimoQueFalta(lead?.reserva, casa);
+	// Una solicitud que el servidor ya revisó al guardarla (`minimoAlPedir`) cumplió el de ese día: si el dueño lo subió
+	// después, se confirma igual (el cliente pidió de buena fe y su precio quedó fijo). Las de antes se revisan con el de hoy.
+	const corta = lead?.reserva?.minimoAlPedir === true ? 0 : minimoQueFalta(lead?.reserva, casa);
 	if (corta) return `Son ${nNoches(V().nochesEntre(lead.reserva.llegada, lead.reserva.salida))} y la casa pide al menos ${corta} en esas fechas: no se puede confirmar. Ciérrala con «No se dio».`;
 	return '';
 }

@@ -318,15 +318,21 @@ await t('mora con el comprobante del cliente: la pausa del servidor y el nivel d
 		} finally { S.reloj = antes; airbnb = []; }
 	});
 
-	await t('confirmar: con el mínimo de noches de hoy (el dueño lo subió después de la solicitud), no se confirma', async () => {
+	await t('confirmar: si el dueño sube el mínimo después de la solicitud, se confirma con el que había al pedirla; una de antes (sin esa marca) se revisa con el de hoy', async () => {
 		conAirbnb();
 		casaNoche('cv4');
 		const lead = await pedir('cv4', '2027-03-01', '2027-03-03');
+		assert.equal(leer(`leads/${lead}`).reserva.minimoAlPedir, true, 'el servidor anota que cumplió el mínimo al pedirla');
+		const vieja = await pedir('cv4', '2027-04-01', '2027-04-03');
+		const { minimoAlPedir, ...sinMarca } = leer(`leads/${vieja}`).reserva;
+		poner(`leads/${vieja}`, { ...leer(`leads/${vieja}`), reserva: sinMarca });
 		poner('properties/cv4', { ...leer('properties/cv4'), vacacional: { ...leer('properties/cv4').vacacional, nochesMin: 3 } });
-		const [s, d] = await confirmar(lead);
+		let [s, d] = await confirmar(lead);
+		assert.equal(s, 200, JSON.stringify(d));
+		[s, d] = await confirmar(vieja);
 		assert.equal(s, 409);
 		assert.match(d.error, /Son 2 noches y la casa pide al menos 3/);
-		assert.equal(leer(`reservas/${lead}`), null);
+		assert.equal(leer(`reservas/${vieja}`), null);
 	});
 
 	await t('el calendario de EQ para las plataformas lleva las reservas confirmadas y los bloqueos del dueño; nunca lo que vino de Airbnb', async () => {

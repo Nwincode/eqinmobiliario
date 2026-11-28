@@ -108,4 +108,5 @@
 - [x] 2026-11-27 «Dale» → en curso: esperar 5 s a Airbnb al confirmar y, si no responde, «Revisé Airbnb» con la antigüedad de la copia; va con los arreglos 2–11.
 - [-] 2026-11-27 «This session's worker process was restarted. If your previous turn was already complete, take no action and wait for the next event. Otherwise, continue from where you left off.» → aviso del sistema, no es un pedido.
 - [x] 2026-11-27 «Continua» → arreglos 1–11 unidos: pruebas, reglas 706/706, recorrido 291/291, dos segundas revisiones corregidas; PR y publicación.
-- [~] 2026-11-27 «Necesitas confirme algo si es así enséñame que es» → listadas 3 decisiones pendientes (campos a lista, botón del socio, mínimo de noches al subirlo); espera su respuesta.
+- [x] 2026-11-27 «Necesitas confirme algo si es así enséñame que es» → listadas 3 decisiones pendientes (campos a lista, botón del socio, mínimo de noches al subirlo); espera su respuesta.
+- [~] 2026-11-27 «Lo recomendado 1 y 2 El 3 la b» → 3b hecho (se confirma con el mínimo de cuando se pidió; va en PR #162); 1 (todos los campos a lista) y 2 (botón del socio): maquetas en curso, esperan su visto bueno antes de programar.

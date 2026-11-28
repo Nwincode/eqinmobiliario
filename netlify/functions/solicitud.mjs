@@ -175,6 +175,8 @@ export async function guardarSolicitud(tx, leadId, token, datos, { ip = 'anon', 
 	// El mínimo de noches de hoy (el general o el de esas fechas: la misma regla de la página).
 	const minimo = minimoQueFalta(reserva, casa);
 	if (minimo) no(409, [`Esta casa pide al menos ${minimo} noches en esas fechas: elige otra salida.`, `This place requires at least ${minimo} nights on those dates: pick another check-out.`], { recargar: true, minimo });
+	// Cumplió el mínimo al pedirla: si el dueño lo sube después, la solicitud se confirma igual (motivoParaNoConfirmar).
+	reserva.minimoAlPedir = true;
 	// Lo que se le mostró al cliente (precio de cada noche, limpieza y depósito) con lo guardado hoy en la casa: si cambió,
 	// no se guarda; la página pone el precio al día y el cliente ve el total nuevo antes de volver a enviar.
 	if (cotizacionCambio(reserva, casa)) no(409, ['El precio cambió: revisa el total y vuelve a enviar.', 'The price changed: check the total and send again.'], { recargar: true, precio: true });
