@@ -1445,7 +1445,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	const seVe = (persona, texto) => persona.p.locator('.form-section', { hasText: texto }).first().isVisible().catch(() => false);
 	const enFicha = async (persona, campos) => { const v = []; for (const c of campos) if (await persona.p.locator(`[data-campo="${c}"]`).isVisible()) v.push(c); return v; };
 	const delAcuerdo = ['exclusiva', 'comisionPct', 'comisionRentaMeses', 'impuestoVenta', 'contrato'];
-	paso('Al socio (solo casas por noche) se le piden sus datos de pago, sin asesor ni acuerdo en su ficha', (await enFicha(admin, [...delAcuerdo, 'agentId'])).length === 0 && await admin.p.locator('[data-campo="datosPago"]').isVisible());
+	paso('Al socio (solo casas por noche) se le piden sus datos de pago, sin asesor ni acuerdo en su ficha', (await enFicha(admin, [...delAcuerdo, 'agentId'])).length === 0 && await admin.p.locator('[data-campo="pago.banco"]').isVisible());
 	const idDueno = 'dueno-del-asesor';
 	const b = await propia(asesor, `#/propietarios/${idDueno}`, { titulo: 'Apartamento zona 10 (prueba)', zona: 'Zona 10', precio: '150000', descripcion: 'REGISTRO DE PRUEBA. Apartamento en zona 10.' }, 'nueva-propiedad-1280');
 	paso('El asesor crea una casa en venta para su propietario, a su nombre', b.casa.operacion?.stringValue === 'venta' && b.casa.propietarioId?.stringValue === idDueno
@@ -1495,7 +1495,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	await espera(600);
 	const titulos = await operaciones('.list-field .casa-fila');
 	paso('La misma ficha muestra sus casas por noche y la de venta, y pide datos de pago y el asesor que la atiende', titulos.includes('vacacional') && titulos.includes('venta')
-		&& await admin.p.locator('[data-campo="agentId"]').isVisible() && await admin.p.locator('[data-campo="datosPago"]').isVisible(), titulos.join(' | '));
+		&& await admin.p.locator('[data-campo="agentId"]').isVisible() && await admin.p.locator('[data-campo="pago.banco"]').isVisible(), titulos.join(' | '));
 	await admin.p.locator('.list-field').scrollIntoViewIfNeeded();
 	await admin.p.screenshot({ path: `${CAPTURAS}/ficha-dos-categorias-1280.png` });
 	const delDueno = await abrirSelector('#/propietarios/dueno-del-asesor');
@@ -1577,7 +1577,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	// Ficha nueva: mientras no tenga casas no se le pide nada que dependa de ellas.
 	await ir(admin.p, '#/propietarios/nuevo');
 	const visibles = [];
-	for (const c of ['agentId', 'comisionPct', 'datosPago', 'exclusiva', 'impuestoVenta']) if (await admin.p.locator(`[data-campo="${c}"]`).isVisible()) visibles.push(c);
+	for (const c of ['agentId', 'comisionPct', 'pago.banco', 'exclusiva', 'impuestoVenta']) if (await admin.p.locator(`[data-campo="${c}"]`).isVisible()) visibles.push(c);
 	paso('A un dueño nuevo, sin casas todavía, no se le pide asesor, comisión, datos de pago, exclusiva ni impuestos', visibles.length === 0 && await admin.p.locator('[data-campo="nombre"]').isVisible(), visibles.join(', '));
 	await admin.p.setViewportSize({ width: 390, height: 844 });
 	await admin.p.screenshot({ path: `${CAPTURAS}/dueno-nuevo-390.png`, fullPage: true });
