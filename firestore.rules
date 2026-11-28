@@ -279,6 +279,18 @@ service cloud.firestore {
       allow read, write: if isAdmin() || (isStaff() && myAgentId() == agentId);
     }
 
+    // La URL y el código que apartó una casa nueva del socio ({ propertyId }): los crea solo el servidor
+    // (netlify/functions/mi-casa-nueva.mjs). El administrador los busca y los suelta al eliminar esa casa, en el mismo
+    // lote que la borra (admin/js/views/properties.js eliminarPropiedad): solo si la casa ya no existe después.
+    match /urlsCasas/{url} {
+      allow list: if isAdmin();
+      allow delete: if isAdmin() && !existsAfter(/databases/$(database)/documents/properties/$(resource.data.propertyId));
+    }
+    match /codigosCasas/{codigo} {
+      allow list: if isAdmin();
+      allow delete: if isAdmin() && !existsAfter(/databases/$(database)/documents/properties/$(resource.data.propertyId));
+    }
+
     match /properties/{id} {
       allow get: if resource.data.publicado == true || isStaff() || esSocioDe(resource.data);
       allow list: if resource.data.publicado == true || isStaff() || esSocioDe(resource.data);

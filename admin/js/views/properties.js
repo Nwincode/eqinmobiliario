@@ -190,8 +190,9 @@ export function propiedadNueva(datos) {
 	return d;
 }
 // Borra una propiedad con todo lo suyo: lo privado (socio, llegada, acuerdo, la llave del calendario de EQ y lo último
-// leído de Airbnb/Booking/VRBO), el documento, sus fotos y su
-// renglón en la lista de casas de su dueño. Una sola para todo el panel: la usan la ficha y el listado.
+// leído de Airbnb/Booking/VRBO), el documento, la URL y el código que apartó si la subió el socio (urlsCasas, codigosCasas:
+// así otra casa puede usarlos), sus fotos y su renglón en la lista de casas de su dueño. Una sola para todo el panel: la
+// usan la ficha, el listado, «Cambios de un dueño» y las casas de ejemplo.
 export async function eliminarPropiedad(p) {
 	// Una casa por noche con huéspedes por venir no se borra; sin ellos, se borra también el contacto de sus huéspedes.
 	const reservas = p.operacion === 'vacacional' ? await deLaCasa(p.id) : [];
@@ -208,9 +209,14 @@ export async function eliminarPropiedad(p) {
 		sobran.slice(i, i + 480).forEach((ref) => parte.delete(ref));
 		await parte.commit();
 	}
+	// Lo que apartó al nacer (por su propertyId: la URL o el código pudieron cambiar después). Si no se pueden leer (p. ej.
+	// las reglas de antes), la casa se borra igual y quedan apartados, como antes.
+	const apartados = (await Promise.all(['urlsCasas', 'codigosCasas'].map((c) => getDocs(query(collection(db, c), where('propertyId', '==', p.id)))
+		.then((s) => s.docs.map((d) => d.ref), (err) => { console.warn(`No se pudo leer ${c} de la casa`, err); return []; })))).flat();
 	const lote = writeBatch(db);
 	contactos.slice(sobran.length).forEach((ref) => lote.delete(ref));
 	for (const privado of ['socio', 'llegada', 'acuerdo', 'calendario', 'icalLeido']) lote.delete(doc(db, 'properties', p.id, 'privado', privado));
+	apartados.forEach((ref) => lote.delete(ref));
 	lote.delete(doc(db, 'properties', p.id));
 	await lote.commit();
 	await borrarFotos(p);
