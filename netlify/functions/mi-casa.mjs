@@ -12,7 +12,7 @@
 // lista; no se deshacen (409): se corrigen en la ficha o se elimina la casa.
 // Errores en JSON { error }: 400, 401, 403 no es suya, 404, 409 (no se puede pausar con huéspedes por venir),
 // 422 un dato que no va, 429 (solo lo que guarda el dueño: 40 en 10 minutos), 503 sin cuenta de escritura.
-// Lo que guarda el dueño responde { ok, cambios, publicaSola } (publicaSola: el sitio se publica solo en unos minutos).
+// Lo que guarda el dueño responde { ok, cambios, publicaSola } (publicaSola: el sitio se publica solo en unos 20 minutos).
 import '../../js/calc-vacacional.js';
 import siteConfig from '../../site.config.json' with { type: 'json' };
 import { json, socioUser, staffUser } from '../lib/auth.mjs';

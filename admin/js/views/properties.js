@@ -5,7 +5,7 @@ import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
 , mount, downloadCsv, cajaTabla, iconoBtn, menuMas, modal, errorMessage, elegirOpcion, ocupado, fallaDelServidor, botonNuevaCasa } from '../ui.js';
 import { renderForm, borrarFotosSinUso, uploadImage, procesarImagen, getPath, clonar } from '../form.js';
-import { session, agentOptions, loadAgents, markPending, trasGuardar, misCasas } from '../session.js';
+import { session, agentOptions, loadAgents, markPending, trasGuardar, misCasas, SALE_SOLA } from '../session.js';
 import { datosParaServidor, revisarCasaNueva } from '../casa-nueva.js';
 import { campoCalendarioEq } from '../calendario-eq.js';
 import { seoPreviewField, stripMd } from '../seo.js';
@@ -1580,7 +1580,7 @@ async function renderEditor(container, id, emb = null) {
 		if (errores.length) return form.marcar(errores);
 		const r = await alServidorCasaNueva({ casa: ref.id, datos });
 		if (r.errores?.length) return form.marcar(r.errores);
-		toast(r.publicaSola ? 'Publicada. Sale en la página en unos minutos.' : 'Publicada. Sale en la página cuando el equipo publique el sitio.');
+		toast(r.publicaSola ? `Publicada. ${SALE_SOLA}` : 'Publicada. Sale en la página cuando el equipo publique el sitio.');
 		if (emb) emb.alGuardar({ id: ref.id, ...datos });
 	});
 	const saveBtn = h('button', { class: 'btn btn-primary', onclick: (e) => save(e.currentTarget) }, paraSocio ? 'Publicar' : 'Guardar');

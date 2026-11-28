@@ -3,7 +3,8 @@
 // las casas de un propietario y su selector, el listado en PDF y el importador. Cada fila es una tarjeta; la lista
 // que las junta es `.lista-casas`. Sin dependencias pesadas: el panel del dueño la carga sin la ficha del inmueble.
 import { h, badge, formatPrice, nombreYDatos } from './ui.js';
-import { miles } from './formato.js';
+import { miles, slugify } from './formato.js';
+import { RUTAS } from './rutas.js';
 import { diasExclusiva } from './acuerdo.js';
 
 // Habitaciones, baños, parqueos, huéspedes y m², cada uno con su ícono: el mismo orden e íconos que la tarjeta del
@@ -63,9 +64,12 @@ export function filaCasa(p, { alTocar, href, sel, der, extra = [], marcas = [], 
 		der ? h('div', { class: 'casa-der' }, der) : null);
 }
 
-// Dirección de la casa en el sitio (la ficha VIP vive en /vip/). Una sola, para el panel y el panel del dueño.
-export function publicUrl(p) {
-	return `${p.vip ? '/vip/' : '/propiedad/'}${p.slug}/`;
+// Dirección de la casa en el sitio (la ficha VIP vive en /vip/). Una sola, para el panel y el panel del dueño. En inglés,
+// solo si el sitio escribe esa página (título y descripción en inglés: scripts/build.mjs propiedadEn); si no, la de español.
+export function publicUrl(p, idioma = 'es') {
+	const en = idioma === 'en' && Boolean(p.en?.titulo && p.en?.descripcion);
+	const rutas = RUTAS[en ? 'en' : 'es'];
+	return `${p.vip ? rutas.fichaVip : rutas.ficha}${en ? slugify(p.en.slug || p.en.titulo) : p.slug}/`;
 }
 
 // Estado de la exclusiva de un inmueble, a partir de su acuerdo (admin/js/acuerdo.js).
