@@ -9,7 +9,7 @@
 import { texto, numero, deLista, mapa, amenidades, fotoLimpia, fotoDeLaCasa, sinContacto, HORAS, MAX_FOTOS } from './mi-casa.js';
 import { TIPOS, OPERACIONES, tipoAplica } from './estados.js';
 import { vacacionalPublico } from './cambios-casa.js';
-import { DEPARTAMENTOS, municipioDe, esMunicipio, pideZona } from './lugares.js';
+import { DEPARTAMENTOS, municipioDe, esMunicipio, pideZona, nombreRepetido } from './lugares.js';
 import { VALORES_CANCELACION } from './cancelacion.js';
 import '../../js/calc-vacacional.js';
 
@@ -127,7 +127,7 @@ export function revisarCasaNueva({ datos = {}, casaId, bucket, origenes, dueno =
 	if (casa.tipo && casa.operacion && !tipoAplica(casa.tipo, casa.operacion)) falla('tipo', 'Tipo', 'una casa por noche es casa, apartamento o finca');
 	// El municipio, de la lista: se guarda con su nombre de la tabla y su departamento.
 	if (casa.ciudad && !esMunicipio(casa.ciudad, casa.departamento)) {
-		const m = municipioDe(casa.ciudad, casa.departamento);
+		const m = !casa.departamento && nombreRepetido(casa.ciudad) ? null : municipioDe(casa.ciudad, casa.departamento);
 		if (m) Object.assign(casa, { ciudad: m.municipio, departamento: m.departamento });
 		else falla('ciudad', 'Municipio', 'elígelo de la lista');
 	}

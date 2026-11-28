@@ -11,11 +11,11 @@ const t = (nombre, fn) => { fn(); ok++; console.log('✓', nombre); };
 t('tres políticas, cada una con su línea en español e inglés', () => {
 	assert.deepEqual(VALORES_CANCELACION, ['flexible', 'moderada', 'estricta']);
 	for (const p of POLITICAS_CANCELACION) for (const l of ['es', 'en']) assert.ok(p[l][0] && p[l][1].endsWith('.'));
-	assert.deepEqual(opcionesCancelacion()[1], ['moderada', 'Moderada', 'Hasta 5 días antes, todo de vuelta; después, la mitad.']);
+	assert.deepEqual(opcionesCancelacion()[1], ['moderada', 'Moderada', 'Hasta 5 días antes de llegar, todo de vuelta; después, nada.']);
 });
 
 t('texto: la política y la nota; lo de antes (solo texto) queda como nota', () => {
-	assert.equal(textoCancelacion('flexible', ''), 'Flexible: Cancela hasta 24 h antes de llegar y recibe todo de vuelta.');
+	assert.equal(textoCancelacion('flexible', ''), 'Flexible: Hasta 24 h antes de llegar, todo de vuelta; después, nada.');
 	assert.equal(textoCancelacion('estricta', 'En Semana Santa no hay devolución.', 'en'),
 		'Strict: Half refunded up to 14 days before check-in; after that, no refund. En Semana Santa no hay devolución.');
 	assert.equal(textoCancelacion('', 'Sin reembolso después de confirmar.'), 'Sin reembolso después de confirmar.');
@@ -37,3 +37,11 @@ t('la página de la casa y la respuesta sugerida del chat usan el mismo texto', 
 });
 
 console.log(`${ok} pruebas de la política de cancelación correctas`);
+
+// Un municipio con nombre repetido (San José está en Escuintla y en Petén) no se completa solo con un departamento.
+{
+	const { municipioDe, nombreRepetido } = await import('../admin/js/lugares.js');
+	assert.equal(nombreRepetido('San José'), true);
+	assert.equal(nombreRepetido('San Miguel Dueñas'), false);
+	assert.equal(municipioDe('San José', 'Petén')?.departamento, 'Petén');
+}

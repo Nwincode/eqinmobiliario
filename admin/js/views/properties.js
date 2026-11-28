@@ -15,7 +15,7 @@ import { tituloEn, tituloEnViejo, enCorregido } from '../reglas.js';
 import { updateDoc, SITIO } from '../firebase.js';
 import { ESTADOS_PROPIEDAD, amenidadesPara, amenidadesEnDe, precioVisible, textosConPrecioOculto, mascotasUnaVez, estadosPara, tipoAplica, incoherencia, OPERACIONES, TIPOS, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo, siglasCondominio, opcionesSiglas, PLANTILLA } from '../importar.js';
-import { opcionesMunicipio, opcionesZona, municipioTexto, municipioDe, esCapital, pideZona, departamentoDe, mismoMunicipio } from '../lugares.js';
+import { opcionesMunicipio, opcionesZona, municipioTexto, municipioDe, esCapital, pideZona, departamentoDe, mismoMunicipio, nombreRepetido } from '../lugares.js';
 import { opcionesCancelacion } from '../cancelacion.js';
 import { revisar, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
@@ -975,7 +975,8 @@ function paraElSocio(campos, { colaborador = false } = {}) {
 	});
 }
 // El municipio de una casa de antes sin departamento: si es un municipio de la tabla, con el suyo.
-const departamentoGuardado = (d) => d.departamento || (municipioDe(d.ciudad)?.municipio === String(d.ciudad || '').trim() ? municipioDe(d.ciudad).departamento : '');
+// Un nombre que existe en dos departamentos (San José, La Libertad…) no se completa solo: lo elige quien guarda.
+const departamentoGuardado = (d) => d.departamento || (!nombreRepetido(d.ciudad) && municipioDe(d.ciudad)?.municipio === String(d.ciudad || '').trim() ? municipioDe(d.ciudad).departamento : '');
 function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = '', inventario = []) {
 	const otras = inventario.filter((p) => p.id !== casaId);
 	// La landing VIP no tiene caja de reserva: una casa por noche siempre usa su ficha normal.
