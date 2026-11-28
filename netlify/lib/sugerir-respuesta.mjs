@@ -6,6 +6,7 @@
 import { leerPublico, listar } from './firestore.mjs';
 import { acotado } from './tareas.mjs';
 import { esSocioDelChat } from './auth.mjs';
+import { textoCancelacion } from '../../admin/js/cancelacion.js';
 
 const TOKEN = /^[A-Za-z0-9]{20,40}$/;
 const NOMBRE_TIPO = { pago: '(se le mostraron los datos de pago)', llegada: '(se le mostraron la dirección y cómo llegar)', foto: '(subió la foto de su comprobante de pago)', reabierto: '(se le pidió otro comprobante)' };
@@ -24,7 +25,7 @@ export async function contextoDelChat(token, u) {
 	const deLaCasa = acotado({
 		titulo: casa?.titulo, zona: casa?.zona, ciudad: casa?.ciudad, tipo: casa?.tipo, habitaciones: casa?.habitaciones, banos: casa?.banos, parqueos: casa?.parqueos,
 		descripcion: String(casa?.descripcion || '').slice(0, 2000), amenidades: casa?.amenidades,
-		huespedesMax: v.huespedesMax, entrada: v.checkIn, salida: v.checkOut, mascotas: v.mascotas, reglas: v.reglas, cancelacion: v.cancelacion
+		huespedesMax: v.huespedesMax, entrada: v.checkIn, salida: v.checkOut, mascotas: v.mascotas, reglas: v.reglas, cancelacion: textoCancelacion(v.cancelacionPolitica, v.cancelacion)
 	}, { texto: 2000, lista: 40 });
 	const reserva = { llegada: chat.llegada, salida: chat.salida, noches: chat.noches, personas: chat.huespedes, estado: chat.estado || 'sin responder', idiomaDelCliente: chat.idioma === 'en' ? 'inglés' : 'español',
 		cliente: String(chat.nombre || '').trim().split(/\s+/)[0] || '' };

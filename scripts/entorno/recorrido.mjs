@@ -206,8 +206,8 @@ paso('Renta vacacional: no se pide nombre ni teléfono del socio', await admin.p
 await campo(admin.p, 'propietarioId').selectOption('socio-prueba');
 await campo(admin.p, 'socio.precioBase').fill('100');
 await campo(admin.p, 'socio.codigoSocio').fill('CH-07');
+await campo(admin.p, 'ciudad').fill('Taxisco');
 await campo(admin.p, 'zona').fill('Monterrico');
-await campo(admin.p, 'ciudad').fill('Santa Rosa');
 await campo(admin.p, 'direccion').fill('Calle Real 12, Monterrico');
 await campo(admin.p, 'mapa').fill('https://maps.google.com/?q=13.8912,-90.4801');
 await campo(admin.p, 'habitaciones').fill('3');

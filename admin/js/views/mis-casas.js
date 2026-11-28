@@ -24,6 +24,7 @@ import { fotoCasa, igual } from '../bitacora.js';
 import { rango, QUE_CADA, MOTIVOS_BLOQUEO, textoDueno, sinValores } from '../texto-dueno.js';
 import { renderForm } from '../form.js';
 import { CAMPOS_DUENO, HORAS, valoresDueno } from '../mi-casa.js';
+import { opcionesCancelacion } from '../cancelacion.js';
 import { permisosDelSocio, avisoSocio } from '../permisos-ui.js';
 import { puede } from '../permisos-socio.js';
 import { amenidadesPara } from '../estados.js';
@@ -537,7 +538,8 @@ const esquemaCasa = (id) => [
 	{ name: 'checkOut', label: 'Hora de salida', type: 'select', options: HORAS.map((x) => [x, x]), cols: 3 },
 	{ name: 'deposito', label: 'Depósito (se devuelve)', type: 'number', min: 0, max: 50000, step: 0.01, cols: 3 },
 	{ name: 'mascotas', label: 'Mascotas', type: 'select', options: SI_NO, cols: 3 },
-	{ name: 'cancelacion', label: 'Cancelación', type: 'textarea', rows: 2, cols: 6, help: 'Vacío: la política general del sitio.' },
+	{ name: 'cancelacionPolitica', label: 'Política de cancelación', type: 'opciones', options: opcionesCancelacion(), cols: 6 },
+	{ name: 'cancelacion', label: 'Nota de cancelación (opcional)', cols: 6, placeholder: 'Ej. En Semana Santa no hay devolución.', help: 'El depósito siempre se devuelve.' },
 	{ name: 'reglas', label: 'Reglas de la casa (una por línea)', type: 'textarea', rows: 3, cols: 6, help: 'Vacío: las reglas generales del sitio.' },
 	{ name: 'comoLlegar', label: 'Cómo llegar', type: 'textarea', rows: 3, cols: 6 },
 	{ type: 'section', label: 'Llegada (privada)', help: 'El huésped la recibe por el chat cuando marcas su pago; nunca sale en la página.' },

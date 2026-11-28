@@ -10,6 +10,7 @@
 // casa nueva que sube el socio (admin/js/casa-nueva.js).
 // Pruebas: scripts/test-mi-casa.mjs.
 import { estadoDe } from './estados.js';
+import { POLITICAS_CANCELACION, VALORES_CANCELACION } from './cancelacion.js';
 // El mismo filtro de contacto del chat (js/calc-vacacional.js `tieneContacto`). Ruta relativa: también corre en Node.
 import '../../js/calc-vacacional.js';
 
@@ -99,7 +100,8 @@ export const CAMPOS_DUENO = [
 	{ campo: 'checkOut', donde: 'casa', ruta: 'vacacional.checkOut', etiqueta: 'Hora de salida', revisar: deLista(HORAS) },
 	{ campo: 'deposito', donde: 'casa', ruta: 'vacacional.deposito', etiqueta: 'Depósito', revisar: numero(50000, 0.01) },
 	{ campo: 'mascotas', donde: 'casa', ruta: 'vacacional.mascotas', etiqueta: 'Mascotas', revisar: deLista(['', 'si', 'no']) },
-	{ campo: 'cancelacion', donde: 'casa', ruta: 'vacacional.cancelacion', etiqueta: 'Cancelación', revisar: texto(1500) },
+	{ campo: 'cancelacionPolitica', donde: 'casa', ruta: 'vacacional.cancelacionPolitica', etiqueta: 'Política de cancelación', revisar: deLista(['', ...VALORES_CANCELACION]) },
+	{ campo: 'cancelacion', donde: 'casa', ruta: 'vacacional.cancelacion', etiqueta: 'Nota de cancelación', revisar: texto(1500) },
 	{ campo: 'reglas', donde: 'casa', ruta: 'vacacional.reglas', etiqueta: 'Reglas de la casa', revisar: texto(2000) },
 	{ campo: 'comoLlegar', donde: 'casa', ruta: 'vacacional.comoLlegar', etiqueta: 'Cómo llegar', revisar: texto(1500) },
 	{ campo: 'estado', donde: 'casa', ruta: 'estado', etiqueta: 'En la página', revisar: deLista(ESTADOS_DUENO) },
@@ -214,6 +216,7 @@ export function textoValor(campo, v) {
 	if (campo === 'amenidades') return (v || []).join(', ') || '—';
 	if (campo === 'mascotas') return { si: 'Se aceptan', no: 'No se aceptan' }[v] || 'Sin indicar';
 	if (campo === 'estado') return v === 'pausada' ? 'Pausada (no sale en la página)' : 'Disponible';
+	if (campo === 'cancelacionPolitica') return POLITICAS_CANCELACION.find((p) => p.valor === v)?.es[0] || 'Sin elegir';
 	if (v === '' || v === null || v === undefined) return '—';
 	return String(v);
 }

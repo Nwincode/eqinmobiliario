@@ -29,6 +29,23 @@ t('una casa en venta completa pasa; el asesor es el que atiende al dueño', () =
 	// La marca de agua (marca: true) no la decide quien manda.
 	assert.ok(r.casa.fotos.every((f) => !('marca' in f)));
 });
+t('municipio de la lista con su departamento; zona obligatoria solo en la capital', () => {
+	assert.deepEqual([revisar(venta()).casa.ciudad, revisar(venta()).casa.departamento], ['Guatemala', 'Guatemala']);
+	const antigua = revisar(venta({ ciudad: 'antigua', zona: '' }));
+	assert.deepEqual(antigua.errores, []);
+	assert.deepEqual([antigua.casa.ciudad, antigua.casa.departamento, antigua.casa.zona], ['Antigua Guatemala', 'Sacatepéquez', '']);
+	assert.equal(revisar(venta({ ciudad: 'San José', departamento: 'Petén' })).casa.departamento, 'Petén');
+	assert.deepEqual(campos(revisar(venta({ ciudad: 'Narnia' }))), ['ciudad']);
+	assert.deepEqual(campos(revisar(venta({ zona: '' }))), ['zona']);
+	assert.deepEqual(campos(revisar(venta({ departamento: 'Narnia' }))), ['departamento']);
+});
+t('política de cancelación: una de la lista; la nota aparte', () => {
+	const r = revisar(noche({ vacacional: { nochesMin: 1, huespedesMax: 4, checkIn: '15:00', checkOut: '11:00', cancelacionPolitica: 'estricta', cancelacion: 'En Semana Santa no hay devolución.' } }));
+	assert.deepEqual(r.errores, []);
+	assert.equal(armarCasaNueva(r).casa.vacacional.cancelacionPolitica, 'estricta');
+	assert.equal(armarCasaNueva(r).casa.vacacional.cancelacion, 'En Semana Santa no hay devolución.');
+	assert.deepEqual(campos(revisar(noche({ vacacional: { nochesMin: 1, huespedesMax: 4, checkIn: '15:00', checkOut: '11:00', cancelacionPolitica: 'gratis' } }))), ['vacacional.cancelacionPolitica']);
+});
 t('el colaborador elige el asesor (de los activos); el propietario no', () => {
 	assert.equal(revisar(venta({ agentId: 'a2' }), { dueno: { tipo: 'colaborador', agentId: 'a1' } }).casa.agentId, 'a2');
 	assert.deepEqual(campos(revisar(venta({ agentId: 'otro' }), { dueno: { tipo: 'colaborador' } })), ['agentId']);

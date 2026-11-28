@@ -9,6 +9,8 @@
 import { texto, numero, deLista, mapa, amenidades, fotoLimpia, fotoDeLaCasa, sinContacto, HORAS, MAX_FOTOS } from './mi-casa.js';
 import { TIPOS, OPERACIONES, tipoAplica } from './estados.js';
 import { vacacionalPublico } from './cambios-casa.js';
+import { DEPARTAMENTOS, municipioDe, esMunicipio, pideZona } from './lugares.js';
+import { VALORES_CANCELACION } from './cancelacion.js';
 import '../../js/calc-vacacional.js';
 
 const V = globalThis.EQVacacional;
@@ -53,8 +55,11 @@ export const CAMPOS_NUEVA = [
 	{ campo: 'titulo', etiqueta: 'Título', revisar: texto(90, { min: 5 }) },
 	{ campo: 'descripcion', etiqueta: 'Descripción', revisar: texto(6000, { min: 20 }) },
 	{ campo: 'precio', etiqueta: 'Precio', para: OTRA, revisar: positivo(100000000, 1, 'escribe el precio') },
-	{ campo: 'zona', etiqueta: 'Zona', revisar: texto(60, { min: 1 }) },
-	{ campo: 'ciudad', etiqueta: 'Ciudad / municipio', revisar: texto(60, { min: 1 }) },
+	// Municipio de la lista (admin/js/lugares.js) con su departamento; la zona, obligatoria solo en la capital (lo revisa
+	// revisarCasaNueva con el municipio).
+	{ campo: 'ciudad', etiqueta: 'Municipio', revisar: texto(60, { min: 1 }) },
+	{ campo: 'departamento', etiqueta: 'Departamento', revisar: deLista(['', ...DEPARTAMENTOS]) },
+	{ campo: 'zona', etiqueta: 'Zona', revisar: texto(60) },
 	// En venta y renta la dirección y el mapa salen en la página; en una casa por noche son privados (el cliente los recibe
 	// al pagar) y la dirección es obligatoria (sin ella la casa no se muestra: revisarPublicar).
 	{ campo: 'direccion', etiqueta: 'Residencial / dirección', para: OTRA, revisar: texto(160) },
@@ -83,7 +88,8 @@ export const CAMPOS_NUEVA = [
 	{ campo: 'vacacional.mascotas', etiqueta: 'Mascotas', para: NOCHE, revisar: deLista(['', 'si', 'no']) },
 	{ campo: 'vacacional.comoLlegar', etiqueta: 'Cómo llegar', para: NOCHE, revisar: texto(1500) },
 	{ campo: 'vacacional.reglas', etiqueta: 'Reglas de la casa', para: NOCHE, revisar: texto(2000) },
-	{ campo: 'vacacional.cancelacion', etiqueta: 'Cancelación', para: NOCHE, revisar: texto(1500) }
+	{ campo: 'vacacional.cancelacionPolitica', etiqueta: 'Política de cancelación', para: NOCHE, revisar: deLista(['', ...VALORES_CANCELACION]) },
+	{ campo: 'vacacional.cancelacion', etiqueta: 'Nota de cancelación', para: NOCHE, revisar: texto(1500) }
 ];
 // Los nombres de la ficha que manda el socio (lo demás de la ficha no se manda: es del equipo o lo pone el servidor).
 export const NOMBRES_NUEVA = [...new Set([...CAMPOS_NUEVA.map((c) => c.campo), 'agentId', 'fotos'])];
@@ -119,6 +125,13 @@ export function revisarCasaNueva({ datos = {}, casaId, bucket, origenes, dueno =
 		poner(destino, def.ruta || def.campo, r.valor);
 	}
 	if (casa.tipo && casa.operacion && !tipoAplica(casa.tipo, casa.operacion)) falla('tipo', 'Tipo', 'una casa por noche es casa, apartamento o finca');
+	// El municipio, de la lista: se guarda con su nombre de la tabla y su departamento.
+	if (casa.ciudad && !esMunicipio(casa.ciudad, casa.departamento)) {
+		const m = municipioDe(casa.ciudad, casa.departamento);
+		if (m) Object.assign(casa, { ciudad: m.municipio, departamento: m.departamento });
+		else falla('ciudad', 'Municipio', 'elígelo de la lista');
+	}
+	if (casa.ciudad && pideZona(casa) && !casa.zona) falla('zona', 'Zona', 'no puede quedar vacío');
 	// Fotos: de 5 a 40, sin repetir, todas de la carpeta de esta casa. La descripción de cada una (para Google) la que
 	// escribió, sin contacto; si la dejó vacía, vacía: el sitio la arma al publicar con el título de ese día
 	// (scripts/lib/templates.mjs photoAlt).

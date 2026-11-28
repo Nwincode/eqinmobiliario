@@ -69,40 +69,8 @@ export function lugarDe(p, conDireccion = false) {
 	return sinRepetir([conDireccion && p.direccion, p.zona, p.ciudad]).join(', ');
 }
 
-// Departamento de Guatemala de cada municipio o lugar que usa el inventario (Google: addressRegion; portales:
-// provincia). Se busca primero la zona (Monterrico es un lugar con nombre propio) y después la ciudad, y el
-// nombre tiene que ser el de la tabla completo: «Colonia Las Flores» no es Flores (Petén). Si no está en la
-// tabla, no se inventa: queda vacío y quien lo usa omite el campo.
-const DEPARTAMENTOS = {
-	Guatemala: ['guatemala', 'ciudad de guatemala', 'guatemala city', 'mixco', 'villa nueva', 'villa canales', 'santa catarina pinula',
-		'san jose pinula', 'fraijanes', 'san miguel petapa', 'amatitlan', 'chinautla', 'san juan sacatepequez', 'san pedro sacatepequez',
-		'san pedro ayampuc', 'palencia', 'chuarrancho', 'san raymundo'],
-	'Sacatepéquez': ['antigua', 'antigua guatemala', 'la antigua guatemala', 'jocotenango', 'ciudad vieja', 'san lucas sacatepequez',
-		'santiago sacatepequez', 'sumpango', 'pastores', 'santa maria de jesus', 'san antonio aguas calientes', 'alotenango', 'san miguel duenas', 'sacatepequez'],
-	'Santa Rosa': ['monterrico', 'taxisco', 'chiquimulilla', 'cuilapa', 'santa rosa', 'barberena'],
-	Escuintla: ['escuintla', 'puerto san jose', 'san jose', 'iztapa', 'puerto de iztapa', 'el paredon', 'sipacate', 'palin'],
-	'Sololá': ['solola', 'panajachel', 'san pedro la laguna', 'san marcos la laguna', 'santa cruz la laguna', 'san juan la laguna', 'santiago atitlan', 'lago de atitlan', 'atitlan'],
-	'Petén': ['peten', 'flores', 'san benito', 'santa elena', 'tikal'],
-	Izabal: ['izabal', 'rio dulce', 'livingston', 'puerto barrios', 'el estor'],
-	Quetzaltenango: ['quetzaltenango', 'xela'],
-	'Alta Verapaz': ['alta verapaz', 'coban', 'semuc champey', 'lanquin'],
-	Chimaltenango: ['chimaltenango', 'tecpan', 'el tejar'],
-	Retalhuleu: ['retalhuleu', 'champerico'],
-	Huehuetenango: ['huehuetenango'],
-	Zacapa: ['zacapa', 'estanzuela'],
-	Jutiapa: ['jutiapa'],
-	'El Progreso': ['el progreso', 'guastatoya', 'sanarate']
-};
-const sinTildes = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
-const MUNICIPIOS = new Map(Object.entries(DEPARTAMENTOS).flatMap(([dep, lugares]) => lugares.map((l) => [l, dep])));
-export function departamentoDe(p) {
-	// «Zona 10» y «Km 25.5 Carretera a El Salvador» no son municipios: se sigue con la ciudad.
-	for (const campo of [p.zona, p.ciudad]) {
-		const dep = MUNICIPIOS.get(sinTildes(campo).replace(/^(municipio|ciudad) de /, ''));
-		if (dep) return dep;
-	}
-	return '';
-}
+// Departamento de una casa: la tabla de lugares es una sola (admin/js/lugares.js, también la usa el panel).
+export { departamentoDe } from '../../admin/js/lugares.js';
 
 // Una sola: admin/js/formato.js (también la usa el panel).
 export { plural } from '../../admin/js/formato.js';

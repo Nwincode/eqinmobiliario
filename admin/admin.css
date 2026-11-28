@@ -1297,6 +1297,35 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .menu-mas-lista .dropdown-item:hover, .menu-mas-lista .dropdown-item:focus-visible { background: var(--eq-primary-soft); color: var(--adm-text); }
 .menu-mas-lista .dropdown-item > span { width: 1rem; text-align: center; color: var(--adm-muted); }
 .menu-mas-lista .menu-mas-peligro, .menu-mas-lista .menu-mas-peligro > span { color: var(--eq-danger); }
+
+/* «sugerido» (admin/js/sugerido.js): un campo con su lista de opciones que se filtra al escribir (municipio, zona,
+   siglas, zonas de interés). La lista es la del menú ⋮ (.menu-mas-lista); aquí solo se coloca debajo del campo.
+   Sin scroll propio: muestra hasta 8 y «Escribe para ver las otras N». */
+.sugerido { position: relative; }
+.sugerido:has(.dropdown-menu.show) { z-index: 30; }
+.sugerido .dropdown-menu { position: absolute; inset: calc(100% + 4px) 0 auto 0; margin: 0; }
+.sugerido .dropdown-header { font-size: 12px; line-height: 16px; padding: 8px 12px 4px; color: var(--adm-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.sugerido .dropdown-item small { margin-left: auto; color: var(--adm-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.sugerido .dropdown-item.active { background: var(--eq-primary-soft); color: var(--adm-text); }
+.sugerido .dropdown-mas { font-size: 12px; line-height: 16px; color: var(--adm-muted); padding: 8px 12px; }
+
+/* «opciones» (form.js): elegir una de pocas, cada una con su línea de qué significa (política de cancelación). */
+.opciones { display: grid; gap: 0; }
+.opciones label { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; min-height: 44px; margin: 0; cursor: pointer; }
+.opciones label + label { border-top: 1px solid var(--adm-border); }
+.opciones input { margin-top: 2px; flex: none; }
+.opciones b { display: block; font-weight: 600; line-height: 20px; }
+.opciones span { display: block; font-size: 14px; line-height: 20px; color: var(--adm-muted); }
+
+/* Chip de la pieza «tags» (amenidades, zonas de interés): letra de 14, ✕ con 44 px de toque. */
+.tag-chip { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 4px 0 8px; border: 1px solid var(--adm-border); border-radius: 14px; background: var(--adm-gris-bg); font-size: 14px; line-height: 20px; }
+.tag-chip-x { position: relative; width: 20px; height: 20px; display: inline-grid; place-items: center; border: 0; border-radius: 10px; background: transparent; color: var(--adm-muted); font-size: 10px; padding: 0; }
+.tag-chip-x::after { content: ""; position: absolute; inset: -12px; }
+.tag-chip-x:hover { background: var(--adm-border); color: var(--adm-text); }
+/* «tags» con `lista` (zonas de interés): los chips y lo que se escribe en una sola caja. */
+.tags-caja { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-height: 44px; padding: 4px 8px; }
+.tags-input { flex: 1 1 96px; min-width: 96px; border: 0; outline: 0; height: 32px; background: transparent; font-size: 16px; }
+.tags-caja:focus-within { border-color: var(--eq-focus); }
 .barra-masa {
 	position: sticky;
 	top: calc(60px + .5rem);

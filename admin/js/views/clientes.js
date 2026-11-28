@@ -1,6 +1,6 @@
 // Clientes: lista, tablero por etapas y ficha con historial, agenda y propiedades de interés.
 import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
-import { h, iconoBtn, menuMas, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, tablaAdmin, tarjeta, nombreYDatos, hoy } from '../ui.js';
+import { h, iconoBtn, menuMas, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, tablaAdmin, tarjeta, nombreYDatos, hoy, elegirOpcion } from '../ui.js';
 import { renderForm } from '../form.js';
 import { session, loadAgents, agentOptions } from '../session.js';
 import { loadLeads } from './leads.js';
@@ -12,10 +12,13 @@ import {
 	chipVencimiento, filaActividad, ms, loadReglas, textoRegla, REGLAS_POR_DEFECTO, corregirCorreo
 } from '../crm.js';
 import { refrescarPorCliente } from '../portal.js';
+import { FUENTES_CLIENTE, MOTIVOS_PERDIDA } from '../portal-clientes.js';
+import { zonasDeCliente, opcionesZonasInteres } from '../lugares.js';
 
 const VISTA_KEY = 'eq-clientes-vista';
 
-function esquema(agentes, reglas = REGLAS_POR_DEFECTO) {
+// `propiedades`: las del inventario, para sugerir sus zonas en «Zonas de interés».
+function esquema(agentes, reglas = REGLAS_POR_DEFECTO, propiedades = []) {
 	return [
 		{ name: 'nombre', label: 'Nombre', required: true, cols: 6 },
 		{ name: 'tipo', label: 'Tipo de cliente', type: 'select', options: TIPOS_CLIENTE, cols: 3 },
@@ -24,12 +27,15 @@ function esquema(agentes, reglas = REGLAS_POR_DEFECTO) {
 		{ name: 'email', label: 'Correo', type: 'email', cols: 4 },
 		{ name: 'nit', label: 'NIT', cols: 4, placeholder: 'CF si no tiene', help: 'Sale en sus cotizaciones.' },
 		session.isAdmin ? { name: 'agentId', label: 'Asesor', type: 'select', options: agentes, cols: 4 } : null,
-		{ name: 'fuente', label: 'Fuente', cols: session.isAdmin ? 4 : 6, placeholder: 'Google, Encuentra24, referido…' },
+		// De la lista; la escrita antes a mano se sigue mostrando como opción.
+		{ name: 'fuente', label: 'Fuente', type: 'select', cols: session.isAdmin ? 4 : 6,
+			options: (d) => [['', 'Elige…'], ...FUENTES_CLIENTE.map((f) => [f, f]), ...(d.fuente && !FUENTES_CLIENTE.includes(d.fuente) ? [[d.fuente, d.fuente]] : [])] },
 		{ name: 'operacion', label: 'Busca', type: 'select', options: [['venta', 'Comprar'], ['renta', 'Rentar'], ['vender', 'Vender su propiedad'], ['invertir', 'Invertir']], cols: session.isAdmin ? 4 : 6 },
 		{ type: 'section', label: 'Lo que busca' },
 		{ name: 'presupuesto', label: 'Presupuesto', type: 'number', cols: 4 },
 		{ name: 'moneda', label: 'Moneda', type: 'select', options: [['USD', 'US$'], ['GTQ', 'Q']], cols: 2 },
-		{ name: 'zonas', label: 'Zonas de interés', cols: 6, placeholder: 'Zona 16, Carretera a El Salvador…' },
+		// Las mismas zonas, sectores y municipios de la ficha de la casa (admin/js/lugares.js), como chips.
+		{ name: 'zonas', label: 'Zonas de interés', type: 'tags', cols: 6, placeholder: 'Agregar zona', lista: () => opcionesZonasInteres(propiedades) },
 		{ name: 'requerimiento', label: 'Requerimiento', type: 'textarea', rows: 3, placeholder: 'Casa de 3 habitaciones, jardín, cerca de colegios…' },
 		{ type: 'section', label: 'Negocio' },
 		{ name: 'montoEstimado', label: 'Monto del negocio', type: 'number', cols: 4, help: 'Precio de venta; en renta, la renta mensual.' },
@@ -40,8 +46,7 @@ function esquema(agentes, reglas = REGLAS_POR_DEFECTO) {
 		{ type: 'custom', when: (d) => d.operacion === 'renta' && d.comisionPct !== undefined && d.comisionPct !== null && d.comisionPct !== '' && (d.comisionMeses === undefined || d.comisionMeses === null || d.comisionMeses === ''), update: (el, d) => {
 			el.className = 'col-12 alert alert-warning small mb-0';
 			el.textContent = `Su comisión está en % (${d.comisionPct} % de la renta) y se sigue usando así. En renta va en meses: escribe los meses acordados.`;
-		} },
-		{ name: 'motivoPerdida', label: 'Motivo si se perdió', cols: 4 }
+		} }
 	].filter(Boolean);
 }
 
@@ -56,6 +61,25 @@ function contactoBotones(c) {
 
 // Un dato de la ficha: ícono + texto. Sin valor no se dibuja.
 const dato = (icono, texto, cls = '') => (texto ? h('div', { class: `crm-dato ${cls}` }, h('span', { class: `${icono} crm-icono`, 'aria-hidden': 'true' }), h('span', {}, texto)) : null);
+
+// Cambia la etapa de un cliente (ficha, menú y tablero: una sola). Al pasar a «Perdido» se pregunta una vez por qué
+// (MOTIVOS_PERDIDA); estando en «Perdido», volver a elegirlo cambia solo el motivo. Si se cierra sin elegir, no cambia
+// nada. Devuelve true si guardó.
+async function cambiarEtapa(c, etapa) {
+	const antes = c.etapa || 'nuevo';
+	if (etapa === antes && etapa !== 'perdido') return false;
+	const motivo = etapa === 'perdido' ? await elegirOpcion('¿Por qué se perdió?', MOTIVOS_PERDIDA) : null;
+	if (etapa === 'perdido' && !motivo) return false;
+	const cambios = etapa === antes ? { motivoPerdida: motivo } : { etapa, etapaFecha: serverTimestamp(), ...(motivo ? { motivoPerdida: motivo } : {}) };
+	try {
+		await updateDoc(doc(db, 'clientes', c.id), { ...cambios, updatedAt: serverTimestamp() });
+		const titulo = etapa === antes ? `Motivo: ${motivo}` : `Etapa: ${etapaLabel(antes)} → ${etapaLabel(etapa)}${motivo ? ` (${motivo})` : ''}`;
+		await crearActividad({ tipo: 'nota', titulo, clienteId: c.id, clienteNombre: c.nombre, agentId: c.agentId, hecha: true });
+		Object.assign(c, { etapa, ...(motivo ? { motivoPerdida: motivo } : {}) });
+		refrescarPorCliente(c);
+		return true;
+	} catch (err) { showError(err); return false; }
+}
 
 // ---------------------------------------------------------------- Lista y tablero
 
@@ -86,21 +110,13 @@ async function renderLista(container) {
 
 	const filtrados = () => {
 		const q = buscar.value.trim().toLowerCase();
-		return clientes.filter((c) => (!q || `${c.nombre} ${c.telefono} ${c.email} ${c.zonas || ''}`.toLowerCase().includes(q))
+		return clientes.filter((c) => (!q || `${c.nombre} ${c.telefono} ${c.email} ${zonasDeCliente(c.zonas).join(' ')}`.toLowerCase().includes(q))
 			&& (!fTipo.value || c.tipo === fTipo.value)
 			&& (!fAsesor.value || (fAsesor.value === '-' ? !c.agentId : c.agentId === fAsesor.value))
 			&& (!soloIncompletos.checked || revisar('clientes', c).length));
 	};
 
-	const moverEtapa = async (c, etapa) => {
-		try {
-			await updateDoc(doc(db, 'clientes', c.id), { etapa, etapaFecha: serverTimestamp(), updatedAt: serverTimestamp() });
-			await crearActividad({ tipo: 'nota', titulo: `Etapa: ${etapaLabel(c.etapa)} → ${etapaLabel(etapa)}`, clienteId: c.id, clienteNombre: c.nombre, agentId: c.agentId, hecha: true });
-			c.etapa = etapa;
-			refrescarPorCliente(c);
-			dibujar();
-		} catch (err) { showError(err); }
-	};
+	const moverEtapa = async (c, etapa) => { if (await cambiarEtapa(c, etapa)) dibujar(); };
 
 	const tarjeta = (c) => {
 		const prox = proximaActividad(actividades, c.id);
@@ -108,7 +124,7 @@ async function renderLista(container) {
 		const card = h('div', { class: 'crm-card', draggable: 'true', dataset: { id: c.id } }, h('div', { class: 'crm-card-datos' },
 			h('a', { href: `#/clientes/${c.id}`, class: 'crm-card-nombre enlace-toque' }, c.nombre || '(sin nombre)'),
 			dato('icon-user', TIPOS_CLIENTE.find(([v]) => v === c.tipo)?.[1]),
-			dato('icon-map-marker', c.zonas),
+			dato('icon-map-marker', zonasDeCliente(c.zonas).join(', ')),
 			dato('icon-money', c.montoEstimado ? money(c.montoEstimado, c.moneda) : '', 'fw-semibold text-nowrap'),
 			prox ? h('div', { class: 'crm-dato' }, iconoActividad(prox.tipo), h('span', {}, h('span', { class: 'text-nowrap' }, fechaHora(prox.fecha)), ' ', chipVencimiento(prox), prox.titulo ? h('div', { class: 'text-muted' }, prox.titulo) : null))
 				: dato('icon-calendar', 'Sin seguimiento', 'text-danger'),
@@ -180,7 +196,7 @@ async function renderLista(container) {
 
 	const exportar = () => downloadCsv(`clientes-${hoy()}.csv`, [
 		['Nombre', 'Teléfono', 'Correo', 'Tipo', 'Etapa', 'Presupuesto', 'Zonas', 'Monto', 'Asesor', 'Fuente'],
-		...filtrados().map((c) => [c.nombre, c.telefono, c.email, c.tipo, etapaLabel(c.etapa), c.presupuesto || '', c.zonas || '', c.montoEstimado || '', nombreAsesor[c.agentId] || '', c.fuente || ''])
+		...filtrados().map((c) => [c.nombre, c.telefono, c.email, c.tipo, etapaLabel(c.etapa), c.presupuesto || '', zonasDeCliente(c.zonas).join(', '), c.montoEstimado || '', nombreAsesor[c.agentId] || '', c.fuente || ''])
 	]);
 
 	mount(container,
@@ -245,7 +261,9 @@ async function renderFicha(container, id) {
 		return;
 	}
 	const c = nuevo ? { etapa: 'nuevo', tipo: 'comprador', idioma: 'es', moneda: 'USD', agentId: session.isAdmin ? '' : session.agentId } : { id, ...snap.data() };
-	const form = renderForm(esquema(agentes, reglas), c, { folder: `clientes/${ref.id}` });
+	// Zonas de interés guardadas antes como un texto: pasan a chips, sin perder ninguna.
+	c.zonas = zonasDeCliente(c.zonas);
+	const form = renderForm(esquema(agentes, reglas, propiedades), c, { folder: `clientes/${ref.id}` });
 	const recargar = () => { container.replaceChildren(); renderFicha(container, id); };
 
 	const guardar = async (btn) => {
@@ -331,14 +349,15 @@ async function renderFicha(container, id) {
 		try { await updateDoc(ref, { interes: interes.filter((x) => x !== pid), updatedAt: serverTimestamp() }); refrescarPorCliente(c, pid); recargar(); } catch (err) { showError(err); }
 	};
 
-	const etapa = h('select', { class: 'form-select w-auto', title: 'Etapa', 'aria-label': 'Etapa' }, ETAPAS.map(([v, l]) => h('option', { value: v, selected: (c.etapa || 'nuevo') === v }, l)));
+	// La etapa; en «Perdido», con su motivo al lado («Perdido · Encontró otra») y «Cambiar el motivo…».
+	const perdido = (c.etapa || 'nuevo') === 'perdido';
+	const etapa = h('select', { class: 'form-select w-auto', title: 'Etapa', 'aria-label': 'Etapa' },
+		ETAPAS.map(([v, l]) => h('option', { value: v, selected: (c.etapa || 'nuevo') === v }, v === 'perdido' && perdido && c.motivoPerdida ? `${l} · ${c.motivoPerdida}` : l)),
+		perdido ? h('option', { value: 'motivo' }, 'Cambiar el motivo…') : null);
 	etapa.addEventListener('change', async () => {
-		try {
-			await updateDoc(ref, { etapa: etapa.value, etapaFecha: serverTimestamp(), updatedAt: serverTimestamp() });
-			refrescarPorCliente(c);
-			await crearActividad({ tipo: 'nota', titulo: `Etapa: ${etapaLabel(c.etapa)} → ${etapaLabel(etapa.value)}`, clienteId: id, clienteNombre: c.nombre, agentId: c.agentId, hecha: true });
-			recargar();
-		} catch (err) { showError(err); }
+		const nueva = etapa.value;
+		etapa.value = c.etapa || 'nuevo';
+		if (await cambiarEtapa(c, nueva === 'motivo' ? 'perdido' : nueva)) recargar();
 	});
 
 	const eliminar = async () => {
