@@ -6,9 +6,13 @@
 // Contra el abuso: Cloudflare Turnstile (netlify/lib/turnstile.mjs; sin llaves, solo el límite) y un límite que
 // comparten todas las instancias (limitadorDurable) por IP y por correo.
 // El id de la solicitud y el token del chat los pone la página (al azar, largos) y no cambian si reintenta: un segundo
-// envío de la misma solicitud responde lo mismo, no crea otra.
+// envío de la misma solicitud responde lo mismo, no crea otra. El código de la reserva (EQ-XXXXXX) lo pone el servidor,
+// único (codigosReserva/{codigo}, en la misma transacción), y lo devuelve con el token: { token, codigo }.
+// El precio, la limpieza, el depósito y el mínimo de noches se revisan con lo guardado en la casa (la misma cuenta de la
+// página): si cambiaron, 409 { recargar } y la página pone el precio al día antes de volver a enviar.
 // GET: la llave pública de Turnstile ('' sin configurar), para que la página ponga la prueba solo si hace falta.
 import '../../js/calc-vacacional.js';
+import { randomInt } from 'node:crypto';
 import { json } from '../lib/auth.mjs';
 import { leerPrivado } from '../lib/firestore.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
@@ -16,7 +20,7 @@ import { limitadorDurable, limitadorContador, ipDe } from '../lib/limite.mjs';
 import { moraDe } from '../lib/comisiones.mjs';
 import { apartadasDe, purgarCasa } from '../lib/ocupacion.mjs';
 import { reenviarEnlace } from '../lib/aviso-chat-envio.mjs';
-import { seCruzan, apartaFechas, bajoElPlan, HORAS_RESPUESTA } from '../../admin/js/reservas-calculo.js';
+import { seCruzan, apartaFechas, bajoElPlan, cotizacionCambio, minimoQueFalta, HORAS_RESPUESTA } from '../../admin/js/reservas-calculo.js';
 import { montosDe } from '../lib/reservas-servidor.mjs';
 import { pasaTurnstile, llavePublica } from '../lib/turnstile.mjs';
 import { correoValido, telefonoValido } from '../../admin/js/formato.js';
@@ -75,11 +79,12 @@ export function revisarPedido(p, ahora = Date.now()) {
 		const e = Object.entries(l.campana).slice(0, 8).filter(([k, v]) => /^[a-z_]{1,30}$/.test(k) && typeof v === 'string');
 		if (e.length) lead.campana = Object.fromEntries(e.map(([k, v]) => [k, v.slice(0, 200)]));
 	}
+	// (El código que mande una página de antes no se usa: lo pone el servidor al guardar.)
 	const reserva = {
-		codigo: texto(r.codigo, 20), llegada: r.llegada, salida: r.salida, noches: entero(r.noches), huespedes: entero(r.huespedes),
+		llegada: r.llegada, salida: r.salida, noches: entero(r.noches), huespedes: entero(r.huespedes),
 		subtotal: numero(r.subtotal), impuestos: numero(r.impuestos), total: numero(r.total), deposito: numero(r.deposito ?? 0), moneda: texto(r.moneda, 3)
 	};
-	if (!reserva.codigo || !reserva.moneda || reserva.deposito === null || reserva.deposito < 0) no(400, 'Solicitud inválida');
+	if (!reserva.moneda || reserva.deposito === null || reserva.deposito < 0) no(400, 'Solicitud inválida');
 	// Lo que cotizó el sitio (V.cotizar): impuestos = 22 % del subtotal y total = subtotal + impuestos, al centavo; con algo
 	// que cobrar y de 1 a 90 noches, las de las fechas. Así nadie infla el subtotal sin inflar lo que paga el cliente.
 	if (!(reserva.subtotal > 0) || reserva.impuestos === null || Math.abs(reserva.impuestos - reserva.subtotal * 0.22) > 0.02
@@ -118,15 +123,31 @@ export const mismaSolicitud = (guardado, { lead, reserva }) => Boolean(guardado)
 // Solo el servidor (sin `match` en las reglas).
 const RECIENTES_MS = HORAS_RESPUESTA * 3_600_000;
 
-// En la transacción: la casa manda (dueño, asesor, título, moneda y personas máximo); los montos se congelan aquí (aparta
-// sus fechas desde que nace); cuentan aquí el límite por IP y por correo y, sin prueba de Turnstile (`sinPrueba`), los
-// estrictos. Devuelve el token del chat.
-export async function guardarSolicitud(tx, leadId, token, datos, { ip = 'anon', sinPrueba = false } = {}) {
+// El código de la reserva: «EQ-» y 6 letras o números que no se confunden (sin 0/O ni 1/I), al azar.
+const LETRAS_CODIGO = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+export const CODIGO = /^EQ-[A-HJ-NP-Z2-9]{6}$/;
+export const codigoAlAzar = () => `EQ-${Array.from({ length: 6 }, () => LETRAS_CODIGO[randomInt(LETRAS_CODIGO.length)]).join('')}`;
+// Uno que no tenga otra solicitud (codigosReserva/{codigo}, leído en la transacción; dos a la vez con el mismo: la base
+// rechaza la segunda con ALREADY_EXISTS y se repite). Solo el servidor (sin `match` en las reglas).
+async function codigoLibre(tx, azar) {
+	for (let i = 0; i < 8; i++) {
+		const codigo = azar();
+		if (CODIGO.test(codigo) && !(await tx.leer(`codigosReserva/${codigo}`))) return codigo;
+	}
+	throw new Error('No se encontró un código de reserva libre');
+}
+// El mensaje de la solicitud empieza con su código (el que puso el servidor; el de una página de antes se quita).
+const conCodigo = (codigo, mensaje) => [codigo, String(mensaje || '').replace(/^EQ-[A-Za-z0-9]{1,17} · /, '')].filter(Boolean).join(' · ').slice(0, 2000);
+
+// En la transacción: la casa manda (dueño, asesor, título, moneda, personas máximo, mínimo de noches y precio); el código
+// se pone aquí; los montos se congelan aquí (aparta sus fechas desde que nace); cuentan aquí el límite por IP y por correo
+// y, sin prueba de Turnstile (`sinPrueba`), los estrictos. Devuelve { token, codigo }. (`azar`: el código, en las pruebas.)
+export async function guardarSolicitud(tx, leadId, token, datos, { ip = 'anon', sinPrueba = false, azar = codigoAlAzar } = {}) {
 	const { lead, reserva, chat } = datos;
 	// Reintento de la misma solicitud (la respuesta anterior se perdió): ya quedó, se responde lo mismo.
 	const previa = await tx.leer(`leads/${leadId}`);
 	if (previa) {
-		if ((await tx.leer(`chatsPorSolicitud/${leadId}`))?.token === token && mismaSolicitud(previa, datos)) return token;
+		if ((await tx.leer(`chatsPorSolicitud/${leadId}`))?.token === token && mismaSolicitud(previa, datos)) return { token, codigo: previa.reserva?.codigo || '' };
 		no(409, ['Esta solicitud ya se envió con otros datos: recarga la página.', 'This request was already sent with other details: reload the page.']);
 	}
 	if (await tx.leer(`chats/${token}`)) no(409, ['Esta solicitud ya se envió con otros datos: recarga la página.', 'This request was already sent with other details: reload the page.']);
@@ -151,6 +172,12 @@ export async function guardarSolicitud(tx, leadId, token, datos, { ip = 'anon', 
 			no(409, FECHAS_TOMADAS, { fechas: true });
 		}
 	}
+	// El mínimo de noches de hoy (el general o el de esas fechas: la misma regla de la página).
+	const minimo = minimoQueFalta(reserva, casa);
+	if (minimo) no(409, [`Esta casa pide al menos ${minimo} noches en esas fechas: elige otra salida.`, `This place requires at least ${minimo} nights on those dates: pick another check-out.`], { recargar: true, minimo });
+	// Lo que se le mostró al cliente (precio de cada noche, limpieza y depósito) con lo guardado hoy en la casa: si cambió,
+	// no se guarda; la página pone el precio al día y el cliente ve el total nuevo antes de volver a enviar.
+	if (cotizacionCambio(reserva, casa)) no(409, ['El precio cambió: revisa el total y vuelve a enviar.', 'The price changed: check the total and send again.'], { recargar: true, precio: true });
 	// Sin prueba de «no soy un robot»: el tope del sitio y los de IP y correo, contados aquí mismo.
 	if (sinPrueba) {
 		if (await sinPruebaEnElSitio.enTransaccion(tx, 'todas'))
@@ -158,6 +185,10 @@ export async function guardarSolicitud(tx, leadId, token, datos, { ip = 'anon', 
 		if (await porIpSinPrueba.enTransaccion(tx, ip) || await porCorreoSinPrueba.enTransaccion(tx, lead.email)) no(429, MUCHAS);
 	}
 	if (await porIp.enTransaccion(tx, ip) || await porCorreo.enTransaccion(tx, lead.email)) no(429, MUCHAS);
+	const codigo = await codigoLibre(tx, azar);
+	reserva.codigo = codigo;
+	lead.mensaje = conCodigo(codigo, lead.mensaje);
+	tx.crear(`codigosReserva/${codigo}`, { leadId, propertyId: lead.propertyId }, { ahora: ['creado'] });
 	const montos = await montosDe(tx, leadId, { ...lead, reserva }, casa);
 	const propietarioId = casa.propietarioId || '';
 	const titulo = String(casa.titulo || '').slice(0, 200);
@@ -174,7 +205,7 @@ export async function guardarSolicitud(tx, leadId, token, datos, { ip = 'anon', 
 	if (montos) tx.crear(`montosSolicitud/${leadId}`, montos, { ahora: ['cuando'] });
 	const lista = { lista: [...vigentes, { leadId, llegada: reserva.llegada, salida: reserva.salida, creada: ahora }] };
 	if (recientes) tx.cambiar(rutaRecientes, lista); else tx.crear(rutaRecientes, lista);
-	return token;
+	return { token, codigo };
 }
 
 export default async (req, context) => {
@@ -220,7 +251,7 @@ export default async (req, context) => {
 		if (ya && mismaSolicitud(guardada, pedidoPlano)) {
 			if (await porIpReenvio(ip)) return muchas();
 			await ponerAlDiaContacto(pedido).catch((err) => console.error('Solicitud (contacto):', err.message));
-			return json(200, { token: ya });
+			return json(200, { token: ya, codigo: guardada.reserva?.codigo || '' });
 		}
 		// El freno, después de reconocer el reenvío de una ya guardada y antes de revisar la nueva. Su ventana es la hora en
 		// curso: se dice en cuántos minutos se puede volver a intentar.
@@ -247,11 +278,12 @@ export default async (req, context) => {
 		}
 		// Sin prueba (`sin`), los topes estrictos cuentan dentro de la transacción. Dos que crean a la vez el mismo documento
 		// (el primero de la casa o de un límite): la segunda se repite una vez y ya ve a la primera.
-		const guardar = () => transaccion((tx) => guardarSolicitud(tx, pedido.leadId, pedido.token, datos, { ip, sinPrueba: prueba === 'sin' }));
-		const token = await guardar().catch((err) => { if (err?.codigo === 'ALREADY_EXISTS') return guardar(); throw err; });
+		// (Cada intento con su copia: el código y el mensaje se ponen dentro de la transacción.)
+		const guardar = () => transaccion((tx) => guardarSolicitud(tx, pedido.leadId, pedido.token, structuredClone(datos), { ip, sinPrueba: prueba === 'sin' }));
+		const hecho = await guardar().catch((err) => { if (err?.codigo === 'ALREADY_EXISTS') return guardar(); throw err; });
 		// Sus fechas quedan apartadas: el calendario guardado en el CDN se borra.
 		await purgarCasa(datos.lead.propertyId).catch(() => {});
-		return json(200, { token });
+		return json(200, hecho);
 	} catch (err) {
 		if (err instanceof Rechazo) {
 			// Sin esperar el correo: si el 409 tardara más cuando es la misma persona, el tiempo diría que ese correo tiene una

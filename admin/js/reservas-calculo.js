@@ -4,6 +4,7 @@
 // por el socio salen de lo mismo. Las fórmulas de precios y fechas son las de js/calc-vacacional.js.
 import '../../js/calc-vacacional.js';
 import { visibilidadDe } from './estados.js';
+import { nNoches } from './formato.js';
 
 const V = () => globalThis.EQVacacional;
 export const MOTIVOS_CANCELAR = ['Cliente canceló', 'Fechas ya no disponibles', 'Otro'];
@@ -151,6 +152,18 @@ export function montosCotizados(reserva, casa, privadoSocio) {
 	return { moneda: casa?.moneda || 'USD', costoSocio, alojamiento, limpieza, margen: r2(V().nochePublica(100, privadoSocio.margen) - 100),
 		ganancia: r2(alojamiento - costoSocio), delPlan, gananciaDelPlan, coincide };
 }
+// Lo que cuesta la estancia { llegada, salida } con lo guardado HOY en la casa (vacacional: base, finde, tarifas,
+// limpieza y depósito: lo mismo que /api/disponibilidad le manda a la página), con la misma cuenta de la página
+// (V.cotizarEstancia). /api/solicitud la compara con lo que se le mostró al cliente: si es otra, 409 y la página recarga
+// el precio (no se guarda una solicitud con una limpieza o un precio que ya no son).
+export function cotizacionDeLaCasa(reserva, casa) {
+	const v = casa?.vacacional || {};
+	return V().cotizarEstancia({ plan: { base: v.base, finde: v.finde, tarifas: v.tarifas || [] }, llegada: reserva?.llegada, salida: reserva?.salida, limpieza: v.limpieza, deposito: v.deposito });
+}
+export const cotizacionCambio = (reserva, casa) => {
+	const c = cotizacionDeLaCasa(reserva, casa);
+	return Math.abs(c.subtotal - Number(reserva?.subtotal)) > 0.005 || Math.abs(c.deposito - Number(reserva?.deposito || 0)) > 0.005;
+};
 // Cotizado por debajo del plan (o en cero): lo confirma el administrador (el socio, ni en el panel ni en el servidor).
 export const bajoElPlan = (m) => Boolean(m) && (!(m.alojamiento > 0) || (!m.coincide && m.delPlan > 0 && m.alojamiento < m.delPlan));
 export const TEXTO_CONFIRMA_EQUIPO = 'Se le cotizó menos que el precio de la casa';
@@ -229,7 +242,17 @@ export function motivoParaNoConfirmar(lead, casa, montos, ahora = Date.now()) {
 	// La casa cambió de moneda después de la solicitud: los montos no se comparan entre monedas.
 	const moneda = casa.moneda || 'USD';
 	if ((lead?.reserva?.moneda || 'USD') !== moneda || (montos && montos.moneda !== moneda)) return 'La casa cambió de moneda después de esta solicitud: no se puede confirmar así. Ciérrala con «No se dio» y que el cliente la pida otra vez.';
+	// Menos noches que el mínimo de la casa (el general o el de esas fechas, guardados hoy): la misma regla de la página.
+	const corta = minimoQueFalta(lead?.reserva, casa);
+	if (corta) return `Son ${nNoches(V().nochesEntre(lead.reserva.llegada, lead.reserva.salida))} y la casa pide al menos ${corta} en esas fechas: no se puede confirmar. Ciérrala con «No se dio».`;
 	return '';
+}
+// El mínimo de noches que la estancia { llegada, salida } no cumple con lo guardado en la casa (vacacional.nochesMin y
+// vacacional.minimos), o 0 si lo cumple. La misma regla que la página (V.validarEstancia): la usan /api/solicitud (al
+// guardar) y motivoParaNoConfirmar (al confirmar, en el servidor y en el panel).
+export function minimoQueFalta(reserva, casa) {
+	const v = V().validarEstancia({ llegada: reserva?.llegada, salida: reserva?.salida, nochesMin: casa?.vacacional?.nochesMin, minimos: casa?.vacacional?.minimos });
+	return v.error === 'minimo' ? v.minimo : 0;
 }
 
 // ¿La casa tiene su dirección guardada (privado/llegada)? Sin ella, «Pago recibido» no manda dónde llegar.

@@ -9,13 +9,16 @@
 // nada de nombres, descripciones ni los enlaces (`externas`: las de las plataformas, para el calendario del socio).
 // Caché: el CDN la guarda 30 s con la etiqueta de la casa (netlify/lib/ocupacion.mjs la purga en cada cambio) y el
 // navegador no la guarda. GET /api/disponibilidad/al-dia?id= (el sitio justo antes de enviar una solicitud, y el panel)
-// no pasa por el CDN; con límite por IP (los calendarios de las plataformas salen de lo recordado: ocupacion.mjs).
+// no pasa por el CDN ni por lo recordado de las plataformas (las lee en ese momento: `fresco` en ocupacion.mjs); con
+// límite por IP. Si privado/socio no se pudo leer (no es lo mismo que no tener calendarios), responde `sinLeer`: quien
+// confirma revisa las plataformas a mano. Lleva también el precio, la limpieza, el depósito y los mínimos de noches de
+// hoy: /api/solicitud los compara con lo que se le mostró al cliente.
 // POST /api/disponibilidad { id } con el token del panel: el panel cambió fechas de la casa (Rentas, Solicitudes,
 // el calendario del dueño) y se purga su copia del CDN.
 import '../../js/calc-vacacional.js';
 import { leerPublico, leerPrivado, datosConfigurados } from '../lib/firestore.mjs';
 import { moraDe } from '../lib/comisiones.mjs';
-import { externasDe, purgarCasa, etiquetaCasa, apartadasDe } from '../lib/ocupacion.mjs';
+import { externasDe, purgarCasa, etiquetaCasa, apartadasDe, sinLeerTodo } from '../lib/ocupacion.mjs';
 import { json, usuario } from '../lib/auth.mjs';
 import { limitador, limitadorDurable, ipDe } from '../lib/limite.mjs';
 
@@ -74,13 +77,17 @@ export default async (req, context) => {
 	let sinLeer = [];
 	const ahora = Date.now();
 	if (datosConfigurados()) {
-		// Cada lectura falla por su cuenta: sin Airbnb o sin socio, el calendario igual responde.
+		// Cada lectura falla por su cuenta: sin Airbnb o sin socio, el calendario igual responde. privado/socio que no se
+		// pudo leer no cuenta como «sin calendarios»: `sinLeer`.
+		const FALLO = Symbol('fallo');
 		const [privado, abiertas, mora] = await Promise.all([
-			leerPrivado(`properties/${id}/privado/socio`),
+			leerPrivado(`properties/${id}/privado/socio`).catch(() => FALLO),
 			apartadasDe(id, ahora),
 			moraDe(p.propietarioId, ahora)
 		].map((x) => Promise.resolve(x).catch(() => null)));
-		const ext = await externasDe(privado, id);
+		// Al día: a lo más 3 s por plataforma (la página espera 5 s y Netlify corta a los 10); lo que no responde, con lo
+		// último guardado del día o en `sinLeer`.
+		const ext = privado === FALLO ? sinLeerTodo() : await externasDe(privado, id, fresco ? { fresco: true, espera: 3000 } : {});
 		externas = ext.rangos.map((r) => ({ desde: r.desde, hasta: r.hasta }));
 		fuentes = ext.fuentes;
 		sinLeer = ext.sinLeer;
@@ -99,7 +106,10 @@ export default async (req, context) => {
 	// Las personas que caben, al día (el socio las cambia en su panel): la regla de la solicitud compara con esto.
 	// Solo un número de 1 o más (la regla `caben` igual: lo demás, sin tope).
 	const huespedesMax = typeof v.huespedesMax === 'number' && v.huespedesMax >= 1 ? Math.floor(v.huespedesMax) : undefined;
-	return respuesta(200, { ocupadas, externas: vigentes(externas), apartadas: vigentes(apartadas), plan, minimos, ...(huespedesMax ? { huespedesMax } : {}), ...(atraso === 3 ? { pausada: true } : {}),
+	// El mínimo general, la limpieza y el depósito de hoy (los mismos que revisa /api/solicitud: cotizacionDeLaCasa).
+	const nochesMin = Math.max(1, Math.floor(Number(v.nochesMin) || 1));
+	const limpieza = V.r2(Math.max(0, Number(v.limpieza) || 0)), deposito = V.r2(Math.max(0, Number(v.deposito) || 0));
+	return respuesta(200, { ocupadas, externas: vigentes(externas), apartadas: vigentes(apartadas), plan, nochesMin, minimos, limpieza, deposito, ...(huespedesMax ? { huespedesMax } : {}), ...(atraso === 3 ? { pausada: true } : {}),
 		fuente: fuentes.length ? fuentes.join(',') : 'manual', ...(sinLeer.length ? { sinLeer } : {}) }, id, fresco);
 };
 

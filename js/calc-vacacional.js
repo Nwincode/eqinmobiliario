@@ -351,10 +351,27 @@
 
 	// ---------------------------------------------------------------- iCal (Airbnb, Booking…)
 	// Devuelve solo fechas: [{ desde, hasta }]. No guarda nombres ni descripciones.
-	function fechaIcal(valor) {
-		var m = /^(\d{4})(\d{2})(\d{2})/.exec(String(valor || '').trim());
-		return m ? m[1] + '-' + m[2] + '-' + m[3] : '';
+	// Cada valor: un día (VALUE=DATE, «20261205») o un momento («20261205T150000»; con «Z» al final es hora UTC y se pasa
+	// al día de Guatemala, UTC−6: «20261206T020000Z» es el 5 de dic a las 20:00). Sin «Z» (hora local o con TZID), el día
+	// escrito. Un evento sin DTEND usa DURATION (P3D, P1W, PT36H…); sin los dos, una noche. STATUS:CANCELLED no ocupa.
+	// Un día completo escrito como medianoche UTC en los dos lados («T000000Z» → «T000000Z») queda como los días escritos:
+	// así lo mandan algunas plataformas, y pasarlo a Guatemala correría el bloqueo un día antes y liberaría su última noche.
+	function momentoIcal(valor) {
+		var m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?/.exec(String(valor || '').trim().toUpperCase());
+		if (!m) return null;
+		var dia = m[1] + '-' + m[2] + '-' + m[3];
+		if (!esFecha(dia)) return null;
+		var ms = m[4] ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)) : null;
+		return { dia: dia, ms: ms, utc: Boolean(m[7]), medianoche: Boolean(m[7]) && m[4] === '00' && m[5] === '00' && (m[6] || '00') === '00' };
 	}
+	// DURATION en milisegundos (P[n]W o P[n]DT[n]H[n]M[n]S); 0 si no se entiende.
+	function duracionIcal(valor) {
+		var m = /^\+?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(String(valor || '').trim().toUpperCase());
+		if (!m) return 0;
+		return ((+(m[1] || 0) * 7 + +(m[2] || 0)) * 24 * 3600 + +(m[3] || 0) * 3600 + +(m[4] || 0) * 60 + +(m[5] || 0)) * 1000;
+	}
+	// El día (Guatemala) de un momento: con «Z», la hora UTC menos 6 h (salvo `completo`: el día escrito); si no, el día escrito.
+	function diaIcal(x, completo) { return x.utc && !completo ? hoy(x.ms) : x.dia; }
 	function parseICal(texto) {
 		var lineas = String(texto || '').replace(/\r\n?/g, '\n').replace(/\n[ \t]/g, '').split('\n');
 		var out = [];
@@ -362,19 +379,30 @@
 		lineas.forEach(function (l) {
 			if (/^BEGIN:VEVENT/i.test(l)) { ev = {}; return; }
 			if (/^END:VEVENT/i.test(l)) {
-				if (ev && ev.desde) {
-					var hasta = ev.hasta && ev.hasta > ev.desde ? ev.hasta : sumarDias(ev.desde, 1);
-					out.push({ desde: ev.desde, hasta: hasta });
+				// Se resuelve al cerrar el evento: DURATION y STATUS pueden venir antes que DTSTART.
+				if (ev && ev.inicio && !ev.cancelado) {
+					var ini = ev.inicio, fin = ev.fin, hasta = '';
+					// Día completo escrito a medianoche UTC: el inicio y el final (si lo hay) los dos a las 00:00 Z.
+					var completo = ini.medianoche && (!fin || fin.medianoche);
+					var desde = diaIcal(ini, completo);
+					if (fin) hasta = diaIcal(fin, completo);
+					else if (ev.duracion && ini.ms == null) hasta = sumarDias(ini.dia, Math.max(1, Math.ceil(ev.duracion / DIA)));
+					else if (ev.duracion) hasta = ini.utc && !completo ? hoy(ini.ms + ev.duracion) : new Date(ini.ms + ev.duracion).toISOString().slice(0, 10);
+					if (!hasta || hasta <= desde) hasta = sumarDias(desde, 1);
+					out.push({ desde: desde, hasta: hasta });
 				}
 				ev = null;
 				return;
 			}
 			if (!ev) return;
+			if (/^STATUS(;[^:]*)?:\s*CANCELLED\s*$/i.test(l)) { ev.cancelado = true; return; }
+			var d = /^DURATION(;[^:]*)?:(.*)$/i.exec(l);
+			if (d) { ev.duracion = duracionIcal(d[2]); return; }
 			var m = /^(DTSTART|DTEND)(;[^:]*)?:(.*)$/i.exec(l);
 			if (!m) return;
-			var f = fechaIcal(m[3]);
-			if (!esFecha(f)) return;
-			if (m[1].toUpperCase() === 'DTSTART') ev.desde = f; else ev.hasta = f;
+			var x = momentoIcal(m[3]);
+			if (!x) return;
+			if (m[1].toUpperCase() === 'DTSTART') ev.inicio = x; else ev.fin = x;
 		});
 		return unirRangos(out);
 	}

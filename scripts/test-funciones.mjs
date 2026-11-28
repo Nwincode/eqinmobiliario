@@ -234,4 +234,116 @@ await t('mora con el comprobante del cliente: la pausa del servidor y el nivel d
 	} finally { S.reloj = reloj; }
 });
 
+// ---- La reserva por noche: /api/disponibilidad (y /al-dia), la confirmación del socio y el calendario de salida.
+{
+	await import('../js/calc-vacacional.js');
+	const V = globalThis.EQVacacional;
+	const { default: disponibilidad } = await import('../netlify/functions/disponibilidad.mjs');
+	const { default: reservasFn } = await import('../netlify/functions/reservas.mjs');
+	const { default: solicitudFn } = await import('../netlify/functions/solicitud.mjs');
+	const { default: calendario } = await import('../netlify/functions/calendario.mjs');
+	// Lo que «tiene» Airbnb ahora (su iCal simulado).
+	let airbnb = [];
+	const ical = () => `BEGIN:VCALENDAR\r\n${airbnb.map((e, i) => `BEGIN:VEVENT\r\nUID:${i}\r\nDTSTART;VALUE=DATE:${e.desde.replace(/-/g, '')}\r\nDTEND;VALUE=DATE:${e.hasta.replace(/-/g, '')}\r\nEND:VEVENT`).join('\r\n')}\r\nEND:VCALENDAR\r\n`;
+	const conAirbnb = () => { respuestas = (url) => (url.startsWith('https://airbnb.example/') ? new Response(ical(), { status: 200 }) : new Response('{}', { status: 200 })); };
+	let n = 0;
+	const casaNoche = (id, vac = {}) => {
+		poner(`properties/${id}`, { titulo: 'Casa del lago', operacion: 'vacacional', publicado: true, estado: 'disponible', propietarioId: 'p1', agentId: '', moneda: 'USD',
+			vacacional: { base: 120, finde: 0, tarifas: [], huespedesMax: 4, ...vac } });
+		poner(`properties/${id}/privado/socio`, { precioBase: 100, margen: 20, icalUrl: `https://airbnb.example/${id}.ics` });
+		poner(`properties/${id}/privado/llegada`, { direccion: 'Calle 1' });
+		poner('propietarios/p1', { datosPago: 'Banco X, cuenta 1' });
+	};
+	const al = (id, diaFresco = false) => disponibilidad({ method: 'GET', url: `https://x/api/disponibilidad${diaFresco ? '/al-dia' : ''}?id=${id}`, headers: new Headers() }, { ip: `10.4.0.${++n}` }).then((r) => r.json());
+	const pedir = async (casa, llegada, salida) => {
+		n++;
+		const c = V.cotizarEstancia({ plan: { base: 120 }, llegada, salida });
+		const cuerpo = { leadId: `Lead${String(n).padStart(16, '0')}`, token: `Token${String(n).padStart(23, '0')}`, lead: { nombre: 'Ana Morales', telefono: '+502 5555 1234', email: `ana${n}@example.com`, mensaje: '', origen: 'reserva', pagina: '/x/', propertyId: casa, idioma: 'es' },
+			reserva: { llegada, salida, noches: c.noches, huespedes: 2, subtotal: c.subtotal, impuestos: c.impuestos, total: c.total, deposito: 0, moneda: 'USD' }, chat: {} };
+		const r = await solicitudFn({ method: 'POST', headers: new Headers(), json: async () => cuerpo }, { ip: `10.5.0.${n}` });
+		assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
+		return cuerpo.leadId;
+	};
+	const confirmar = async (leadId, extra = {}) => {
+		S.socio = { uid: 'u-socio', nombre: 'Rodrigo', propietarioId: 'p1' };
+		const r = await reservasFn({ method: 'POST', headers: new Headers(), json: async () => ({ accion: 'confirmar', leadId, ...extra }) }, {});
+		return [r.status, await r.json()];
+	};
+
+	await t('/api/disponibilidad lleva el mínimo general, la limpieza y el depósito de hoy (los que revisa /api/solicitud)', async () => {
+		conAirbnb();
+		casaNoche('cv1', { nochesMin: 3, limpieza: 0, deposito: 150 });
+		const r = await al('cv1');
+		assert.deepEqual([r.nochesMin, r.limpieza, r.deposito], [3, 0, 150]);
+		casaNoche('cv1');
+		assert.deepEqual([(await al('cv1', true)).nochesMin, (await al('cv1', true)).limpieza], [1, 0], 'sin dato: 1 noche y sin limpieza');
+	});
+
+	await t('privado/socio que no se pudo leer no es «sin calendarios»: /al-dia responde sinLeer (el panel pide «Revisé») y el socio tampoco confirma sin revisar', async () => {
+		conAirbnb();
+		casaNoche('cv2');
+		const lead = await pedir('cv2', '2027-02-01', '2027-02-04');
+		S.lecturaFalla = true;
+		try {
+			for (const diaFresco of [false, true]) assert.deepEqual((await al('cv2', diaFresco)).sinLeer, ['las plataformas'], diaFresco ? '/al-dia' : 'la ficha');
+			const [s, d] = await confirmar(lead);
+			assert.deepEqual([s, d.faltaRevisar], [409, ['las plataformas']], JSON.stringify(d));
+		} finally { S.lecturaFalla = false; }
+		airbnb = [];
+		assert.equal((await al('cv2', true)).sinLeer, undefined, 'leído: sin aviso');
+	});
+
+	await t('la ficha usa lo recordado de Airbnb (10 min); /al-dia y la confirmación lo leen en ese momento', async () => {
+		conAirbnb();
+		airbnb = [];
+		casaNoche('cv3');
+		const antes = S.reloj;
+		try {
+			assert.deepEqual((await al('cv3')).externas, []);
+			const lead = await pedir('cv3', '2027-01-10', '2027-01-13');
+			// A los 3 min Airbnb vende esas noches.
+			S.reloj += 3 * 60_000;
+			airbnb = [{ desde: '2027-01-10', hasta: '2027-01-13' }];
+			assert.deepEqual((await al('cv3')).externas, [], 'la ficha: lo recordado');
+			// El socio confirma (sin que nadie haya pedido /al-dia): la lectura es de ahora, no la de hace 3 min.
+			const [s, d] = await confirmar(lead);
+			assert.equal(s, 409, JSON.stringify(d));
+			assert.match(d.error, /ocupadas en Airbnb/);
+			assert.equal(leer(`reservas/${lead}`), null);
+			// Airbnb las suelta y vende otras: la ficha sigue con lo recordado; /al-dia, al momento.
+			S.reloj += 60_000;
+			airbnb = [{ desde: '2027-01-20', hasta: '2027-01-22' }];
+			assert.deepEqual((await al('cv3')).externas, [{ desde: '2027-01-10', hasta: '2027-01-13' }], 'la ficha: lo recordado');
+			assert.deepEqual((await al('cv3', true)).externas, [{ desde: '2027-01-20', hasta: '2027-01-22' }], '/al-dia: al momento');
+		} finally { S.reloj = antes; airbnb = []; }
+	});
+
+	await t('confirmar: con el mínimo de noches de hoy (el dueño lo subió después de la solicitud), no se confirma', async () => {
+		conAirbnb();
+		casaNoche('cv4');
+		const lead = await pedir('cv4', '2027-03-01', '2027-03-03');
+		poner('properties/cv4', { ...leer('properties/cv4'), vacacional: { ...leer('properties/cv4').vacacional, nochesMin: 3 } });
+		const [s, d] = await confirmar(lead);
+		assert.equal(s, 409);
+		assert.match(d.error, /Son 2 noches y la casa pide al menos 3/);
+		assert.equal(leer(`reservas/${lead}`), null);
+	});
+
+	await t('el calendario de EQ para las plataformas lleva las reservas confirmadas y los bloqueos del dueño; nunca lo que vino de Airbnb', async () => {
+		casaNoche('cv5', { bloqueos: [{ desde: '2026-12-10', hasta: '2026-12-12' }, { desde: '2026-01-01', hasta: '2026-01-03' }] });
+		const llave = 'a'.repeat(48);
+		poner('properties/cv5/privado/calendario', { llave, propietarioId: 'p1' });
+		poner('properties/cv5/privado/icalLeido', { icalUrl: { url: 'https://airbnb.example/cv5.ics', rangos: [{ desde: '2026-12-20', hasta: '2026-12-22' }], cuando: S.reloj } });
+		poner('reservas/rc1', { propertyId: 'cv5', estado: 'confirmada', llegada: '2027-01-05', salida: '2027-01-07' });
+		poner('reservas/rc2', { propertyId: 'cv5', estado: 'cancelada', llegada: '2027-01-15', salida: '2027-01-17' });
+		const r = await calendario({ method: 'GET', url: `https://x/api/calendario?casa=cv5&t=${llave}`, headers: new Headers() });
+		assert.equal(r.status, 200);
+		const texto = await r.text();
+		assert.deepEqual(JSON.parse(JSON.stringify(V.parseICal(texto))), [{ desde: '2026-12-10', hasta: '2026-12-12' }, { desde: '2027-01-05', hasta: '2027-01-07' }]);
+		assert.match(texto, /UID:bloqueo-2026-12-10-2026-12-12@eqinmobiliario\.gt/);
+		assert.match(texto, /UID:rc1@eqinmobiliario\.gt/);
+	});
+	respuestas = () => new Response('{}', { status: 200 });
+}
+
 console.log(`\n${ok} pruebas de las funciones pasan.`);

@@ -42,7 +42,10 @@ const RUTA = (id) => `properties/${id}/privado/icalLeido`;
 
 // { rangos: [{ desde, hasta, fuente }], fuentes: ['airbnb', …], sinLeer: ['Airbnb', …] }.
 // `espera`: cuánto se espera a cada plataforma (al confirmar, poco: la función de Netlify se corta a los 10 s).
-export async function externasDe(privado, casaId = '', { espera = 8000, hasta = 0 } = {}) {
+// `fresco`: sin lo recordado en la función (los 10 min): lo piden la revisión justo antes de enviar y la de confirmar
+// (/api/disponibilidad/al-dia y /api/reservas), donde una noche vendida hace 5 min en Airbnb sí importa. La carga
+// normal de la ficha sí usa lo recordado.
+export async function externasDe(privado, casaId = '', { espera = 8000, hasta = 0, fresco = false } = {}) {
 	const ahora = Date.now();
 	const cals = V.CALENDARIOS.filter((c) => privado?.[c.campo]);
 	let guardado;
@@ -54,7 +57,7 @@ export async function externasDe(privado, casaId = '', { espera = 8000, hasta = 
 	const leidos = await Promise.all(cals.map(async (c) => {
 		const url = privado[c.campo];
 		const mem = LEIDOS.get(url);
-		if (mem && ahora - mem.cuando < FRESCO) return [c, mem.rangos];
+		if (!fresco && mem && ahora - mem.cuando < FRESCO) return [c, mem.rangos];
 		const rangos = await leerIcal(url, espera);
 		if (rangos) {
 			LEIDOS.set(url, { rangos, cuando: ahora });
@@ -95,6 +98,11 @@ export async function externasDe(privado, casaId = '', { espera = 8000, hasta = 
 	}
 	return { rangos, fuentes, sinLeer, deHace };
 }
+
+// Lo que se responde cuando ni siquiera se pudo leer qué calendarios tiene la casa (properties/{id}/privado/socio no
+// respondió: no es lo mismo que una casa sin calendarios). Ninguna noche de fuera se sabe: quien confirma revisa a mano
+// («Revisé las plataformas»). Lo usan /api/disponibilidad (y con ella el panel) y /api/reservas.
+export const sinLeerTodo = () => ({ rangos: [], fuentes: [], sinLeer: ['las plataformas'], deHace: [] });
 
 export async function purgarCasa(...ids) {
 	const token = process.env.NETLIFY_PURGE_API_TOKEN;

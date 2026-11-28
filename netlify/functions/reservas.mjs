@@ -19,7 +19,7 @@ import { Respuesta, falla, fechasCambiaron, cerrarLasQueSeCruzan, fechasDeLaCasa
 import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
 import { limitador } from '../lib/limite.mjs';
 import { leerPrivado } from '../lib/firestore.mjs';
-import { externasDe, purgarCasa } from '../lib/ocupacion.mjs';
+import { externasDe, purgarCasa, sinLeerTodo } from '../lib/ocupacion.mjs';
 import { anotarEnTx } from '../lib/bitacora.mjs';
 import { choqueExterno, motivoSocioNoConfirma, reservaDeSolicitud, queConfirmo, montosDeConfirmacion, motivoParaNoConfirmar, yaRespondida, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, textoPagoReabierto,
 	vencePago, guardarVence, faltaDireccion, TEXTO_SIN_DIRECCION, MOTIVOS_NO, MOTIVOS_CANCELAR, MOTIVO_NO_LLEGO, textoNo, textoCliente } from '../../admin/js/reservas-calculo.js';
@@ -37,19 +37,19 @@ const aTiempo = (promesa, hasta, valor) => new Promise((ok) => {
 	Promise.resolve(promesa).then((v) => { clearTimeout(t); ok(v); }, () => { clearTimeout(t); ok(valor); });
 });
 // A lo más 2,5 s por plataforma (y nunca después de `hasta`): lo que no responde se avisa («Revisé…»), con lo último
-// leído si hay (externasDe), y la confirmación cabe en los 10 s de Netlify.
-const SIN_LEER = { rangos: [], sinLeer: ['las plataformas'] };
+// leído si hay (externasDe), y la confirmación cabe en los 10 s de Netlify. Leídos ahora (`fresco`), no lo recordado.
+// Si la solicitud o privado/socio no se pudieron leer (no es lo mismo que no tener calendarios): «Revisé las plataformas».
 async function nochesExternas(leadId, hasta) {
 	try {
 		const lead = await aTiempo(leerPrivado(`leads/${leadId}`), hasta, undefined);
-		if (lead === undefined) return SIN_LEER;
+		if (lead === undefined) return sinLeerTodo();
 		if (!ID.test(lead?.propertyId || '')) return { rangos: [], sinLeer: [] };
 		const privado = await aTiempo(leerPrivado(`properties/${lead.propertyId}/privado/socio`), hasta, undefined);
-		if (privado === undefined) return SIN_LEER;
-		return await aTiempo(externasDe(privado, lead.propertyId, { espera: Math.min(2500, hasta - Date.now()), hasta }), hasta, SIN_LEER);
+		if (privado === undefined) return sinLeerTodo();
+		return await aTiempo(externasDe(privado, lead.propertyId, { espera: Math.min(2500, hasta - Date.now()), hasta, fresco: true }), hasta, sinLeerTodo());
 	} catch (err) {
 		console.error('Reservas: calendarios de las plataformas', err.message);
-		return SIN_LEER;
+		return sinLeerTodo();
 	}
 }
 export const textoSinLeer = (sinLeer) => `No pudimos leer el calendario de ${sinLeer.join(' y ')}: revisa allá que esas noches estén libres y confirma otra vez marcando «Revisé ${sinLeer.join(' y ')}».`;
