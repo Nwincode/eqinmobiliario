@@ -48,11 +48,11 @@ const RUTA = (id) => `properties/${id}/privado/icalLeido`;
 export async function externasDe(privado, casaId = '', { espera = 8000, hasta = 0, fresco = false } = {}) {
 	const ahora = Date.now();
 	const cals = V.CALENDARIOS.filter((c) => privado?.[c.campo]);
+	// Lo guardado se lee una sola vez. Con plazo (`hasta`, al confirmar) se pide al mismo tiempo que las plataformas:
+	// leído después de que una no respondió, ya no cabía en el plazo y se perdían sus noches guardadas.
 	let guardado;
-	const deLaBase = async () => {
-		if (guardado === undefined) guardado = casaId ? await leerPrivado(RUTA(casaId)).catch(() => null) : null;
-		return guardado;
-	};
+	const deLaBase = () => (guardado ??= casaId ? leerPrivado(RUTA(casaId)).catch(() => null) : Promise.resolve(null));
+	if (hasta && cals.length) deLaBase();
 	const nuevos = {};
 	const leidos = await Promise.all(cals.map(async (c) => {
 		const url = privado[c.campo];
