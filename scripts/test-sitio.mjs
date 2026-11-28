@@ -267,6 +267,18 @@ test('precios de las tarjetas en US$ (un tipo de cambio): Q 970,000 queda debajo
 	assert.match(h, /Precio mínimo \(US\$\)<\/label>/);
 });
 
+test('«Más recientes» (el orden de los listados y de la portada): destacadas primero y después la más nueva, no por título', () => {
+	const destacadas = new Set(ejemplo.properties.filter((p) => p.destacada === true).map((p) => slugify(p.slug || p.titulo)));
+	for (const u of ['/propiedades/', '/propiedades/venta/']) {
+		const tarjetas = [...de(u).matchAll(/class="property-item"[^>]*data-fecha="(\d+)"[\s\S]*?href="\/(?:propiedad|vip)\/([^/"]+)\//g)].map((m) => ({ fecha: Number(m[1]), slug: m[2] }));
+		assert.ok(tarjetas.length >= 5, `${u}: ${tarjetas.length} tarjetas`);
+		const primera = tarjetas.findIndex((x) => !destacadas.has(x.slug));
+		assert.ok(tarjetas.slice(primera).every((x) => !destacadas.has(x.slug)), `${u}: una destacada después de otra que no lo es`);
+		const resto = tarjetas.slice(primera).map((x) => x.fecha);
+		assert.deepEqual(resto, [...resto].sort((a, b) => b - a), `${u}: no va de la más nueva a la más vieja`);
+	}
+});
+
 test('buscador de las tarjetas sin «undefined» ni espacios dobles cuando falta un dato', () => {
 	for (const [u, h] of Object.entries(html)) {
 		for (const m of h.matchAll(/data-texto="([^"]*)"/g)) assert.ok(!/undefined|null|\s{2}/.test(m[1]), `${u}: «${m[1]}»`);

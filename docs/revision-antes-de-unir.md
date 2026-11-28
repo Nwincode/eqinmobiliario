@@ -278,6 +278,7 @@ Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una se
 | IndexNow recibía todo el sitemap en cada publicación (los buscadores dejan de hacer caso). | Solo lo que cambió desde lo publicado (nuevas, otra fecha o que se fueron): el build compara con el sitemap en línea (`urlsCambiadas`, `netlify/lib/indexnow.mjs`) y deja `/feeds/indexnow.json`; «cambió» no se decide por la fecha de hoy (publicar es a mano, días después). |
 | Las redes del ejemplo decían «eqinmobilariogt» y el manual de marca «@eqinmobiliariogt»; el usuario es `eqinmobiliario.gt`. | Un usuario de redes se copia de la cuenta, no se escribe de memoria; `sameAs` sale solo de Contenido → Contacto y redes. |
 | La 404 solo ofrecía un botón. | La 404 lleva las zonas, tipos y operaciones que se indexan (`porZona`). |
+| (Publicar casas) «Más recientes» salía en orden alfabético: el orden de las casas desempataba con `byOrder`, que cae en el título. Y la dirección en inglés repetida la ganaba la primera de ese orden, así que cambiar el orden cambiaba direcciones ya publicadas. | Un orden por fecha no usa `byOrder` (es para asesores, reseñas y páginas); `scripts/test-sitio.mjs` revisa que después de las destacadas vaya de la más nueva a la más vieja. Lo que se resuelve «el primero gana» (direcciones, títulos repetidos) va por la más antigua, nunca por el orden de los listados. |
 
 ## 7. Cómo se le responde al usuario
 
